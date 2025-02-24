@@ -116,11 +116,29 @@ class Threads(BaseClient):
             return self.profile_from_username(username_or_id)
 
     def _extract_post(self, post_data: dict) -> ThreadsPost:
-        pictures = []
-        if "image_versions2" in post_data and "candidates" in post_data["image_versions2"]:
-            pictures = [
-                Picture(pic["url"], pic["width"], pic["height"]) for pic in post_data["image_versions2"]["candidates"]
-            ]
+        if len(post_data.get("carousel_media") or []) > 0:
+            inner_media = post_data["carousel_media"]
+        else:
+            inner_media = [post_data]
+        post_media = []
+        for obj in inner_media:
+            obj_picture = None
+            if "image_versions2" in obj and "candidates" in obj["image_versions2"]:
+                images = [
+                    Picture(pic["url"], pic["width"], pic["height"]) for pic in obj["image_versions2"]["candidates"]
+                ]
+                images.sort(key=lambda obj: obj.width, reverse=True)
+                if images:
+                    obj_picture = images[0]
+            if len(obj.get("video_versions") or []) > 0:
+                video = obj["video_versions"][0]
+                video = Video(type=video["type"], url=video["url"])
+                if obj_picture is not None:
+                    video.thumbnail = obj_picture
+                post_media.append(video)
+            elif obj_picture is not None:
+                post_media.append(obj_picture)
+
         text = ""
         links = []
         if "text_post_app_info" in post_data and "text_fragments" in post_data["text_post_app_info"]:
@@ -133,9 +151,6 @@ class Threads(BaseClient):
                             display_text=fragment["link_fragment"]["display_text"],
                         )
                     )
-        videos = []
-        if post_data.get("video_versions"):
-            videos = [Video(type=v["type"], url=v["url"]) for v in post_data["video_versions"]]
         user = post_data["user"]
         return ThreadsPost(
             id=post_data["id"],
@@ -150,13 +165,12 @@ class Threads(BaseClient):
             reposts=post_data["text_post_app_info"].get("repost_count", 0),
             quotes=post_data["text_post_app_info"].get("quote_count", 0),
             is_private=user.get("text_post_app_is_private", False),
-            pictures=pictures,
+            media=post_media,
             reply_control=post_data["text_post_app_info"].get("reply_control"),
             media_type=post_data.get("media_type"),
             accessibility_caption=post_data.get("accessibility_caption"),
             is_paid_partnership=post_data.get("is_paid_partnership"),
             like_and_view_counts_disabled=post_data.get("like_and_view_counts_disabled"),
-            videos=videos,
             has_audio=post_data.get("has_audio"),
             original_width=post_data.get("original_width"),
             original_height=post_data.get("original_height"),

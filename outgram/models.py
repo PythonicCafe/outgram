@@ -222,13 +222,12 @@ class ThreadsPost(BasePost):
     reposts: int
     quotes: int
     is_private: bool
-    pictures: List[Picture] = field(default_factory=list)
+    media: List[Union[Picture, Video]] = field(default_factory=list)
     reply_control: Optional[str] = None
     media_type: Optional[int] = None
     accessibility_caption: Optional[str] = None
     is_paid_partnership: Optional[bool] = None
     like_and_view_counts_disabled: Optional[bool] = None
-    videos: List[Video] = field(default_factory=list)
     has_audio: Optional[bool] = None
     original_width: Optional[int] = None
     original_height: Optional[int] = None
@@ -237,7 +236,7 @@ class ThreadsPost(BasePost):
 
     def serialize(self) -> Dict[str, Any]:
         row = super().serialize()
-        for key in ("links", "pictures", "videos"):
+        for key in ("links", "media"):
             row[key] = "\n".join(link["url"] for link in row[key])
         return row
 
@@ -247,7 +246,7 @@ class ThreadsPost(BasePost):
 
     def get_media(self) -> List[Type[BaseMedia]]:
         """Return all media objects of this post"""
-        return (self.pictures or []) + (self.videos or [])
+        return self.media or []
 
 
 # Instagram-related dataclasses

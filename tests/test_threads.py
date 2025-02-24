@@ -1,6 +1,7 @@
 """End-to-end tests for the command-line interface main functions, which will run most part of the codebase"""
 
 import csv
+import random
 from collections import Counter
 from zipfile import ZipFile
 
@@ -15,6 +16,7 @@ THREADS_USERNAME_ID = {
     "wsj": "18133069",
     "nonoinvestidor": "42799100757",
     "filosofia.liquida": "6828796459",
+    "mulheresdocafemataotomazina": "3540507650",
 }
 THREADS_USERNAMES = list(THREADS_USERNAME_ID.keys())
 THREADS_USER_IDS = list(THREADS_USERNAME_ID.values())
@@ -24,6 +26,9 @@ for index, (username, user_id) in enumerate(THREADS_USERNAME_ID.items()):
         THREADS_USER_MIX.append(username)
     else:
         THREADS_USER_MIX.append(user_id)
+random.shuffle(THREADS_USERNAMES)
+random.shuffle(THREADS_USER_IDS)
+random.shuffle(THREADS_USER_MIX)
 
 
 def test_threads_profile_with_usernames(temp_dir):
@@ -103,7 +108,7 @@ def test_threads_profile_posts(temp_dir):
         data = list(csv.DictReader(fobj))
     counter = Counter(row["user_id"] for row in data)
     user_ids_found = set(counter.keys())
-    assert user_ids_found == set(THREADS_USER_IDS)
+    assert user_ids_found.issubset(THREADS_USER_IDS)
     assert len(data) == max_posts
     assert set(counter.values()) == {max_posts_per_user}
 

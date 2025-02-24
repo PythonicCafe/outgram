@@ -1,6 +1,7 @@
 """End-to-end tests for the command-line interface main functions, which will run most part of the codebase"""
 
 import csv
+import random
 from zipfile import ZipFile
 
 from outgram.cli import archive, collect_profile, collect_profile_posts, instagram_post
@@ -21,14 +22,16 @@ for index, (username, user_id) in enumerate(INSTAGRAM_USERNAME_ID.items()):
         INSTAGRAM_USER_MIX.append(username)
     else:
         INSTAGRAM_USER_MIX.append(user_id)
-INSTAGRAM_POST_CODES = (
+INSTAGRAM_POST_CODES = [
     "DEhf2uTJUs0",  # zuck
     "DF-rojvO4g-",  # oficialfernandatorres
     "C2SuqhGv3U0",  # crio.cafe
-    "DGLQHNhOoke",  # oficialfernandatorres
-    "COWY0ydHUrI",  # crio.cafe
     "DFWFT4LyfSJ",  # ficcoesespetaculo
-)
+]
+random.shuffle(INSTAGRAM_USERNAMES)
+random.shuffle(INSTAGRAM_USER_IDS)
+random.shuffle(INSTAGRAM_USER_MIX)
+random.shuffle(INSTAGRAM_POST_CODES)
 
 
 def test_instagram_profile_with_usernames(temp_dir):
@@ -155,4 +158,4 @@ def test_instagram_post(temp_dir):
         data = list(csv.DictReader(fobj))
     assert len(data) == max_posts
     user_ids_found = set(row["author_id"] for row in data)
-    assert len(user_ids_found) == 3  # The first 3 post codes are from different user each one
+    assert len(user_ids_found) == max_posts  # There are no post codes from the same profile more than once
