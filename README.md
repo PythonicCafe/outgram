@@ -53,20 +53,19 @@ profile = client.profile_from_user_id(user_id)
 pprint(profile)
 
 # Result:
-# ThreadsProfile(id=18133069,
-#                username='wsj',
-#                full_name='The Wall Street Journal',
-#                biography='Since 1889 🗞️',
+# ThreadsProfile(id=787132,
+#                username='natgeo',
+#                full_name='National Geographic',
+#                biography='Inspiring the explorer in everyone 🌎',
 #                is_verified=True,
-#                followers=1221734,
+#                followers=15594746,
 #                pictures=[Picture(width=150, height=150, content_type=None),
-#                          Picture(width=320, height=320, content_type=None),
-#                          Picture(width=640, height=640, content_type=None)],
+#                          Picture(width=320, height=320, content_type=None)],
 #                is_private=False,
-#                bio_links=[Link(url='http://wsj.com/',
+#                bio_links=[Link(url='https://on.natgeo.com/instagram',
 #                                title=None,
 #                                is_verified=False,
-#                                id=17987258489277581,
+#                                id=17953782509778540,
 #                                display_text=None)],
 #                is_threads_only_user=False)
 ```
@@ -85,55 +84,33 @@ for index, post in enumerate(client.profile_posts(user_id), start=1):
 
 # Result:
 # Got post 01:
-# ThreadsPost(id='3570337216739782440_18133069',
-#             user_id=18133069,
-#             username='wsj',
+# ThreadsPost(id='3574333699320466889_787132',
+#             user_id=787132,
+#             username='natgeo',
 #             is_verified=True,
-#             text='After Allison Pomeroy lost most of her vision two years ago, '
-#                  'her husband began reading menus, signage and other text out '
-#                  'loud to her. He doesn’t need to anymore.🔗 '
-#                  'https://on.wsj.com/3QqLWz2',
-#             links=[Link(url='https://on.wsj.com/3QqLWz2',
-#                         title=None,
-#                         is_verified=None,
-#                         id=None,
-#                         display_text='on.wsj.com/3QqLW…')],
-#             published_at=datetime.datetime(2025, 2, 18, 0, 9, 56, tzinfo=datetime.timezone.utc),
-#             likes=5,
-#             replies=0,
-#             reposts=0,
-#             quotes=0,
+#             text="Three-toed sloths can hang onto trees even when they're "
+#                  "asleep 🦥 What's your favorite tree-climbing animal?",
+#             links=[],
+#             published_at=datetime.datetime(2025, 2, 23, 9, 30, 20, tzinfo=datetime.timezone.utc),
+#             likes=761,
+#             replies=17,
+#             reposts=24,
+#             quotes=3,
 #             is_private=False,
-#             pictures=[Picture(width=1440, height=1440, content_type=None),
-#                       Picture(width=1080, height=1080, content_type=None),
-#                       Picture(width=720, height=720, content_type=None),
-#                       Picture(width=640, height=640, content_type=None),
-#                       Picture(width=480, height=480, content_type=None),
-#                       Picture(width=320, height=320, content_type=None),
-#                       Picture(width=240, height=240, content_type=None),
-#                       Picture(width=1080, height=1080, content_type=None),
-#                       Picture(width=750, height=750, content_type=None),
-#                       Picture(width=640, height=640, content_type=None),
-#                       Picture(width=480, height=480, content_type=None),
-#                       Picture(width=320, height=320, content_type=None),
-#                       Picture(width=240, height=240, content_type=None),
-#                       Picture(width=150, height=150, content_type=None)],
+#             media=[Picture(width=1439, height=1873, content_type=None)],
 #             reply_control='everyone',
 #             media_type=1,
-#             accessibility_caption='Photo by The Wall Street Journal on '
-#                                   'February 17, 2025. May be an image of 2 '
-#                                   'people, sunglasses, glasses and text that '
-#                                   "says 'Meta's AI-P Powered Ray Ray-Bans Bans "
-#                                   'Are Life- Life-Enhancing for the Blind '
-#                                   "WSJ'.",
+#             accessibility_caption='Photo by National Geographic on February '
+#                                   '23, 2025. May be an image of slow loris, '
+#                                   "sloth and text that says 'ロ BRUCE BRUCEDALE "
+#                                   "DALE'.",
 #             is_paid_partnership=None,
 #             like_and_view_counts_disabled=False,
-#             videos=[],
 #             has_audio=None,
-#             original_width=1440,
-#             original_height=1440,
-#             code='DGMYsg8Ia8o',
-#             reshares=None)
+#             original_width=1439,
+#             original_height=1873,
+#             code='DGalY_YtE3J',
+#             reshares=6)
 # [...]
 ```
 
@@ -317,13 +294,12 @@ The `data/threads-profile-posts.csv` CSV file will be created with the following
 - `reposts`
 - `quotes`
 - `is_private`
-- `pictures`
+- `media`
 - `reply_control`
 - `media_type`
 - `accessibility_caption`
 - `is_paid_partnership`
 - `like_and_view_counts_disabled`
-- `videos`
 - `has_audio`
 - `original_width`
 - `original_height`
