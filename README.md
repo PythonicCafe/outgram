@@ -53,21 +53,22 @@ profile = client.profile_from_user_id(user_id)
 pprint(profile)
 
 # Result:
-# ThreadsProfile(id=787132,
-#                username='natgeo',
-#                full_name='National Geographic',
-#                biography='Inspiring the explorer in everyone 🌎',
-#                is_verified=True,
-#                followers=15594746,
-#                pictures=[Picture(width=150, height=150, content_type=None),
-#                          Picture(width=320, height=320, content_type=None)],
-#                is_private=False,
-#                bio_links=[Link(url='https://on.natgeo.com/instagram',
-#                                title=None,
-#                                is_verified=False,
-#                                id=17953782509778540,
-#                                display_text=None)],
-#                is_threads_only_user=False)
+#ThreadsProfile(id=63106634874,
+#               username='wsj',
+#               full_name='The Wall Street Journal',
+#               biography='Since 1889 🗞️',
+#               is_verified=True,
+#               followers=1280983,
+#               pictures=[Picture(width=150, height=150, content_type=None),
+#                         Picture(width=320, height=320, content_type=None),
+#                         Picture(width=640, height=640, content_type=None)],
+#               is_private=False,
+#               bio_links=[Link(url='http://wsj.com/',
+#                               title=None,
+#                               is_verified=False,
+#                               id=17987258489277581,
+#                               display_text=None)],
+#               is_threads_only_user=False)
 ```
 
 
@@ -83,34 +84,32 @@ for index, post in enumerate(client.profile_posts(user_id), start=1):
     pprint(post)
 
 # Result:
-# Got post 01:
-# ThreadsPost(id='3574333699320466889_787132',
-#             user_id=787132,
-#             username='natgeo',
-#             is_verified=True,
-#             text="Three-toed sloths can hang onto trees even when they're "
-#                  "asleep 🦥 What's your favorite tree-climbing animal?",
-#             links=[],
-#             published_at=datetime.datetime(2025, 2, 23, 9, 30, 20, tzinfo=datetime.timezone.utc),
-#             likes=761,
-#             replies=17,
-#             reposts=24,
-#             quotes=3,
-#             is_private=False,
-#             media=[Picture(width=1439, height=1873, content_type=None)],
-#             reply_control='everyone',
-#             media_type=1,
-#             accessibility_caption='Photo by National Geographic on February '
-#                                   '23, 2025. May be an image of slow loris, '
-#                                   "sloth and text that says 'ロ BRUCE BRUCEDALE "
-#                                   "DALE'.",
-#             is_paid_partnership=None,
-#             like_and_view_counts_disabled=False,
-#             has_audio=None,
-#             original_width=1439,
-#             original_height=1873,
-#             code='DGalY_YtE3J',
-#             reshares=6)
+#Got post 01:
+#ThreadsPost(id='3671530607241963057_63106634874',
+#            user_id=63106634874,
+#            username='wsj',
+#            is_verified=True,
+#            text='A crew in the Red Sea was forced to abandon ship after it '
+#                 'was hit by Yemen’s Houthi rebels on Sunday, the first attack '
+#                 'of its kind since President Trump announced a truce in May.',
+#            links=[],
+#            published_at=datetime.datetime(2025, 7, 7, 12, 3, 4, tzinfo=datetime.timezone.utc),
+#            likes=3,
+#            replies=1,
+#            reposts=0,
+#            quotes=0,
+#            is_private=False,
+#            media=[],
+#            reply_control='everyone',
+#            media_type=19,
+#            accessibility_caption=None,
+#            is_paid_partnership=None,
+#            like_and_view_counts_disabled=False,
+#            has_audio=None,
+#            original_width=612,
+#            original_height=612,
+#            code='DLz5aJ6oaYx',
+#            reshares=None)
 # [...]
 ```
 
