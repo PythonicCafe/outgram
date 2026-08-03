@@ -1,0 +1,58 @@
+{
+  "public_timeline_video": {
+    "__typename": "GraphVideo",
+    "id": "100_200",
+    "shortcode": "VideoCode_1",
+    "taken_at_timestamp": 1700000000,
+    "owner": {"id": "200", "username": "example.person"},
+    "edge_media_to_caption": {"edges": [{"node": {"text": "Sanitized video caption"}}]},
+    "accessibility_caption": "Sanitized video description",
+    "location": null,
+    "dimensions": {"width": 1080, "height": 1920},
+    "display_resources": [{"src": "https://cdn.example.invalid/video-thumb.jpg", "config_width": 1080, "config_height": 1920}],
+    "video_url": "https://cdn.example.invalid/video.mp4",
+    "thumbnail_src": "https://cdn.example.invalid/video-thumb.jpg",
+    "video_view_count": 42,
+    "video_play_count": 41
+  },
+  "media_id_carousel": {
+    "id": "300_200",
+    "pk": "300",
+    "code": "Carousel_1",
+    "taken_at": 1700000001,
+    "media_type": 8,
+    "original_width": 1080,
+    "original_height": 1080,
+    "user": {
+      "pk": "200",
+      "username": "example.person",
+      "full_name": "Example Person",
+      "profile_pic_url": "https://cdn.example.invalid/profile.jpg",
+      "is_verified": false,
+      "is_private": false
+    },
+    "caption": {"text": "Sanitized carousel caption"},
+    "accessibility_caption": "Sanitized carousel description",
+    "like_count": 10,
+    "comment_count": 2,
+    "location": null,
+    "image_versions2": {"candidates": [{"url": "https://cdn.example.invalid/carousel-cover.jpg", "width": 1080, "height": 1080}]},
+    "carousel_media": [
+      {
+        "id": "301",
+        "pk": "301",
+        "original_width": 1080,
+        "original_height": 1080,
+        "image_versions2": {"candidates": [{"url": "https://cdn.example.invalid/carousel-photo.jpg", "width": 1080, "height": 1080}]}
+      },
+      {
+        "id": "302",
+        "pk": "302",
+        "original_width": 720,
+        "original_height": 1280,
+        "image_versions2": {"candidates": [{"url": "https://cdn.example.invalid/carousel-video-thumb.jpg", "width": 720, "height": 1280}]},
+        "video_versions": [{"type": 101, "url": "https://cdn.example.invalid/carousel-video.mp4", "width": 720, "height": 1280}]
+      }
+    ]
+  }
+}
