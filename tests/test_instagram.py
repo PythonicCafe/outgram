@@ -1,11 +1,19 @@
 """End-to-end tests for the command-line interface main functions, which will run most part of the codebase"""
 
 import csv
+import os
 import random
 from zipfile import ZipFile
 
+import pytest
+
 from outgram.cli import archive, collect_profile, collect_profile_posts, instagram_post
 from outgram.instagram import Instagram
+
+pytestmark = [
+    pytest.mark.instagram_smoke,
+    pytest.mark.skipif(not os.environ.get("OUTGRAM_RUN_SMOKE"), reason="set OUTGRAM_RUN_SMOKE=1 to run live tests"),
+]
 
 MIN_WAIT = 5.0
 MAX_WAIT = 10.0
