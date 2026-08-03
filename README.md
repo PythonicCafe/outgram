@@ -7,6 +7,10 @@ use.
 
 > **Note**: this project is developed for research purposes. It's your responsability the way you use it.
 
+## Maintenance
+
+Instagram's public Web queries can change without notice. When an endpoint, persisted query ID or response parser stops working, follow the [Instagram scraper maintenance guide](docs/instagram-maintenance.md). It explains how to capture and safely inspect a HAR from a public profile, update the client and run a small archive smoke test. For the stdlib-only Lightpanda installer and CDP capture utility, see [Lightpanda capture](docs/lightpanda-capture.md).
+
 
 ## License
 
