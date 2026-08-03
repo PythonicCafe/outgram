@@ -274,7 +274,7 @@ class InstagramProfile(BaseProfile):
 
     @property
     def url(self):
-        return f"https://www.instagram.com/{self.userame}/"
+        return f"https://www.instagram.com/{self.username}/"
 
     def get_media(self) -> List[Picture]:
         """Return all media objects of this profile (not from its posts)"""
@@ -303,7 +303,9 @@ class InstagramPost(BasePost):
 
     @property
     def url(self):
-        return f"https://www.instagram.com/{self.author_username}/{self.code}/"
+        if self.type == "video":
+            return f"https://www.instagram.com/reel/{self.code}/"
+        return f"https://www.instagram.com/p/{self.code}/"
 
     def serialize(self) -> Dict[str, Any]:
         row = super().serialize()
