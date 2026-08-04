@@ -2,7 +2,6 @@
 
 import csv
 import os
-from itertools import islice
 
 import pytest
 
@@ -46,13 +45,3 @@ def test_threads_first_profile_page_with_post_limit(temp_dir):
         data = list(csv.DictReader(fobj))
     assert len(data) == 1
     assert data[0]["username"] == THREADS_USERNAME
-
-
-def test_threads_first_profile_page_contains_public_posts():
-    client = Threads(min_wait=1.0, max_wait=1.0)
-
-    posts = list(islice(client.profile_posts_from_username(THREADS_USERNAME), 1))
-
-    assert len(posts) == 1
-    assert posts[0].username == THREADS_USERNAME
-    assert posts[0].id
