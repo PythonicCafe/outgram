@@ -1,9 +1,10 @@
 import argparse
 import csv
+import datetime
 import io
 from pathlib import Path
-from typing import Any, List, Optional, Union
-from zipfile import ZipFile
+from typing import Any, List, Optional, Tuple, Union
+from zipfile import ZipFile, ZipInfo
 
 from . import __version__
 from .export import export_instagram_catalog
@@ -125,6 +126,13 @@ def collect_profile_posts(
         progress.update(index, done=True, end="\n")
 
 
+def _archive_member(
+    archive: ZipFile, filename: str, date_time: Tuple[int, int, int, int, int, int]
+):
+    """Open an archive member with the archive creation timestamp."""
+    return archive.open(ZipInfo(filename=filename, date_time=date_time), mode="w")
+
+
 def archive(
     client_class: Any,
     usernames_or_ids: List[Union[str, int]],
@@ -136,12 +144,16 @@ def archive(
     quiet: bool = False,
 ):
     client = client_class(min_wait=min_wait, max_wait=max_wait)
+    output_zip.parent.mkdir(parents=True, exist_ok=True)
+    archive_date_time = datetime.datetime.now().timetuple()[:6]
     zf = ZipFile(output_zip, mode="w")
 
     profiles = []
     ProgressClass = ProgressBar if not quiet else QuietProgressBar
     progress = ProgressClass(title=f"{client_class.__name__} Profile ", total=len(usernames_or_ids))
-    with io.TextIOWrapper(zf.open("profile.csv", mode="w"), encoding="utf-8") as fobj:
+    with io.TextIOWrapper(
+        _archive_member(zf, "profile.csv", archive_date_time), encoding="utf-8"
+    ) as fobj:
         writer = None
         for index, username_or_id in enumerate(usernames_or_ids, start=1):
             progress.update(index, done=False)
@@ -166,14 +178,18 @@ def archive(
         progress.update(index, done=False)
         extension = profile.picture.content_type.split("/")[-1].lower()
         extension = {"jpeg": "jpg"}.get(extension, extension)
-        with zf.open(f"media/profile_{profile.id}.{extension}", mode="w") as fobj:
+        with _archive_member(
+            zf, f"media/profile_{profile.id}.{extension}", archive_date_time
+        ) as fobj:
             fobj.write(profile.picture.content)
         progress.update(index, done=True)
     progress.update(index, done=True, end="\n")
 
     posts = []
     total_post_media = 0
-    with io.TextIOWrapper(zf.open("post.csv", mode="w"), encoding="utf-8") as fobj:
+    with io.TextIOWrapper(
+        _archive_member(zf, "post.csv", archive_date_time), encoding="utf-8"
+    ) as fobj:
         writer = None
         progress = ProgressClass(title=f"{client_class.__name__} Profile posts ", total=len(profiles))
         downloaded_posts = 0
@@ -214,7 +230,11 @@ def archive(
             progress.update(counter, done=False)
             extension = media.content_type.split("/")[-1].lower()
             extension = {"jpeg": "jpg"}.get(extension, extension)
-            with zf.open(f"media/post_{post.id}_{post_media_index:03d}.{extension}", mode="w") as fobj:
+            with _archive_member(
+                zf,
+                f"media/post_{post.id}_{post_media_index:03d}.{extension}",
+                archive_date_time,
+            ) as fobj:
                 fobj.write(media.content)
             progress.update(counter, done=True)
     progress.update(counter, done=True, end="\n")
