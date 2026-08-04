@@ -6,6 +6,7 @@ OUTGRAM_RUN_SMOKE=1 pytest -m instagram_smoke tests/test_instagram_smoke.py
 
 import csv
 import itertools
+import datetime
 import os
 from zipfile import ZipFile
 
@@ -135,10 +136,22 @@ def test_individual_posts_and_timeline_agree_on_stable_fields():
 def test_download_and_archive_smoke(temp_dir):
     client = make_client()
     photo = client.post(GOVBR_PHOTO)
-    downloaded = list(client.download(photo, parallel=1))
-    assert len(downloaded) == 1
-    assert downloaded[0].content
-    assert downloaded[0].content_type.startswith("image/")
+    video = client.post(RAFICOMEDY_VIDEO)
+    carousel = client.post(RAFICOMEDY_CAROUSEL)
+
+    downloaded_photo = list(client.download(photo, parallel=1))
+    assert len(downloaded_photo) == 1
+    assert downloaded_photo[0].content
+    assert downloaded_photo[0].content_type.startswith("image/")
+
+    downloaded_video = list(client.download(video, parallel=1))
+    assert any(media.content and media.content_type.startswith("video/") for media in downloaded_video)
+    assert all(media.content for media in downloaded_video)
+
+    downloaded_carousel = list(client.download(carousel, parallel=1))
+    assert len(downloaded_carousel) == len(carousel.get_media())
+    assert all(media.content for media in downloaded_carousel)
+    assert all(media.content_type.startswith(("image/", "video/")) for media in downloaded_carousel)
 
     output = temp_dir / "instagram-smoke.zip"
     archive(
@@ -162,3 +175,4 @@ def test_download_and_archive_smoke(temp_dir):
         assert len(rows) == 1
         assert rows[0]["code"]
         assert rows[0]["media"]
+        assert all(datetime.datetime(*member.date_time).date() == datetime.date.today() for member in zip_file.infolist())
