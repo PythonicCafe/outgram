@@ -33,7 +33,7 @@
 - Keep request pacing conservative. Stop or retry later on `429`, `401`, `403`, challenges and login walls.
 - Public query IDs, headers, variables and response shapes change without notice. Keep request-specific settings in named configuration dictionaries and parser fields optional only where public responses legitimately omit them.
 - For Instagram changes, read `docs/instagram-maintenance.md` first. Follow its workflow: small logged-out HAR -> sanitized summary -> minimal fixture and unit test -> opt-in smoke test.
-- HAR files, cookies, CSRF/LSD values, device identifiers and temporary media URLs are sensitive. Never commit, log or copy them into fixtures. Use `scripts/analyze_har.py HAR --profile USERNAME` for a safe summary.
+- Inspect complete HARs locally when diagnosing the public browser protocol. Read cookies, CSRF/LSD values, device identifiers, temporary media URLs, request forms and headers as needed to compare the browser with a fresh client session and derive dynamic bootstrap rules. The boundary is persistence and disclosure: never commit, log, copy into fixtures, hard-code or replay captured transient values. The client may derive equivalent values from its own new session. Use `scripts/analyze_har.py HAR --profile USERNAME` only when a sanitized summary is needed.
 - Profile pages can return SSR GraphQL data or metadata-only fallback depending on navigation headers. Preserve both paths and do not invent absent profile fields.
 - Preserve the distinction between profile, post, picture, video and carousel data. Test every changed media type, pagination and compact/optional response fields.
 

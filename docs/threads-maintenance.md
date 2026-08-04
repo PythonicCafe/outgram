@@ -19,7 +19,9 @@ Numeric-ID lookup and timeline pagination are not currently supported. The previ
 
 Use a disposable, logged-out browser profile. Capture one public profile, load one additional timeline page, then stop recording. HAR files can contain cookies, CSRF/LSD values, session or device identifiers and temporary media URLs.
 
-Inspect the complete HAR locally when diagnosing a failure. Comparing its HTML bootstrap, form values and headers with a newly created public session can reveal a dynamic bootstrap rule. Do not commit the HAR, paste transient values into logs, hard-code them or replay them from the HAR. The client may derive a value from each new public response, but must not import captured values.
+Inspect the complete HAR locally when diagnosing a failure. Read the actual values of cookies, CSRF/LSD tokens, device and web-session identifiers, request forms, headers and temporary URLs when they are needed to compare the browser with a newly created public session. This is expected diagnostic work, including for a logged-out anonymous browser, and it is how to determine which browser values are static, session-derived or unnecessary.
+
+The restriction is persistence and disclosure, not local inspection: do not commit the HAR, paste transient values into chat, logs or issues, copy them into fixtures, hard-code them or replay them from the HAR. Implement extraction of equivalent values from each new client session instead. The client may derive a value from its own public response, but must not import a captured value.
 
 Public protocol metadata is safe to keep in a sanitized summary: usernames, numeric public IDs, operation names, `doc_id`s, endpoints, parameter/header names, variable types and structural response paths. Use the local analyzer for GraphQL requests:
 
