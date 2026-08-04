@@ -16,6 +16,16 @@ class DummyResponse:
         self.headers = {"content-type": content_type}
 
 
+class GraphQLResponse:
+    def __init__(self, data, status_code=200):
+        self._data = data
+        self.status_code = status_code
+        self.headers = {"content-type": "application/json"}
+
+    def json(self):
+        return self._data
+
+
 def public_page():
     return (FIXTURES / "threads_public_profile_ssr.html").read_text()
 
@@ -83,13 +93,56 @@ def test_profile_posts_from_username_reads_first_ssr_page():
     assert posts[0].media[0].width == 800
 
 
-def test_profile_posts_reports_unavailable_pagination_after_first_page():
-    with pytest.raises(RuntimeError, match="pagination is currently unavailable"):
-        list(
-            bare_client(DummyResponse(public_page())).profile_posts_from_username(
-                "example.person"
-            )
-        )
+def test_profile_posts_follow_public_ssr_cursor():
+    calls = []
+    responses = [
+        DummyResponse(public_page()),
+        GraphQLResponse(
+            {
+                "data": {
+                    "mediaData": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "thread_items": [
+                                        {
+                                            "post": {
+                                                "id": "post-2",
+                                                "user": {
+                                                    "pk": "101",
+                                                    "username": "example.person",
+                                                },
+                                                "taken_at": 2,
+                                                "like_count": 0,
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        ],
+                        "page_info": {"has_next_page": False, "end_cursor": None},
+                    }
+                }
+            }
+        ),
+    ]
+    client = bare_client(None)
+
+    def request(**kwargs):
+        calls.append(kwargs)
+        return responses.pop(0)
+
+    client.request = request
+    posts = list(client.profile_posts_from_username("example.person"))
+
+    assert [post.id for post in posts] == ["post-1", "post-2"]
+    assert calls[1]["url"] == "https://www.threads.com/graphql/query"
+    assert calls[1]["headers"]["x-csrftoken"] == "test-csrf"
+    assert calls[1]["headers"]["x-bloks-version-id"] == "test-bloks"
+    assert calls[1]["data"]["lsd"] == "test-lsd"
+    assert calls[1]["data"]["__dyn"] == ""
+    assert calls[1]["data"]["__csr"] == ""
+    assert '"after": "sanitized-cursor"' in calls[1]["data"]["variables"]
 
 
 @pytest.mark.parametrize(
