@@ -201,7 +201,7 @@ class ThreadsProfile(BaseProfile):
 
     @property
     def url(self):
-        return f"https://www.threads.net/@{self.userame}"
+        return f"https://www.threads.com/@{self.username}"
 
     def get_media(self) -> List[Picture]:
         """Return all media objects of this profile (not from its posts)"""
@@ -242,7 +242,7 @@ class ThreadsPost(BasePost):
 
     @property
     def url(self):
-        return f"https://www.threads.net/@{self.userame}/post/{self.code}"
+        return f"https://www.threads.com/@{self.username}/post/{self.code}"
 
     def get_media(self) -> List[Type[BaseMedia]]:
         """Return all media objects of this post"""

@@ -1,76 +1,150 @@
 import datetime
 import json
-from typing import Any, Dict, Generator, Union
+import re
+from typing import Any, Dict, Generator, List, Optional, Union
 
 from .client import BaseClient
 from .models import Link, Picture, ThreadsPost, ThreadsProfile, Video
 from .utils import REGEXP_LSD
 
+REGEXP_THREADS_LSD = re.compile(r'"LSD",\[\],\{"token":"([^"]+)"')
+
 
 # TODO: add username <-> user ID cache, so we avoid unneeded requests and the user don't need to manage this
 class Threads(BaseClient):
-    main_url = "https://www.threads.net/"
-    graphql_url = "https://www.threads.net/api/graphql"
+    main_url = "https://www.threads.com/"
+    graphql_url = main_url + "graphql/query"
+
+    # Observed in the logged-out public Web client. Persisted query IDs can
+    # expire; keep all request-specific settings together for maintenance.
+    public_username_query = {
+        "method": "POST",
+        "url": graphql_url,
+        "doc_id": "28194833553463057",
+        "operation": "BarcelonaUsernameHovercardImplDirectQuery",
+        "headers": {},
+        "variables": {
+            "__relay_internal__pv__BarcelonaIsInternalUserrelayprovider": False,
+            "__relay_internal__pv__BarcelonaIsLoggedInrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasMessagingrelayprovider": False,
+            "__relay_internal__pv__BarcelonaShouldShowFediverseM1Featuresrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasEventBadgerelayprovider": False,
+        },
+    }
+    public_profile_query = {
+        "method": "POST",
+        "url": graphql_url,
+        "doc_id": "25577799881917156",
+        "operation": "BarcelonaProfilePageDirectQuery",
+        "headers": {},
+        "variables": {
+            "canSeeFeedsTab": False,
+            "__relay_internal__pv__BarcelonaIsLoggedInrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasMessagingrelayprovider": False,
+            "__relay_internal__pv__BarcelonaIsLoggedOutrelayprovider": True,
+            "__relay_internal__pv__BarcelonaIsInternalUserrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasEventBadgerelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasCommunitiesrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasWebFaviconsrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasCommunityTopContributorsrelayprovider": False,
+            "__relay_internal__pv__BarcelonaShouldShowFediverseM1Featuresrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasPodcastV2Productionrelayprovider": False,
+        },
+    }
 
     # TODO: implement authentication
     # TODO: list post comments (needs authentication)
 
     def __post_init__(self):
+        self.session.headers.update({"origin": self.main_url.rstrip("/")})
         response = self.request(method="GET", url=self.main_url)
         html = response.content.decode(response.apparent_encoding)
-        self.session.headers["x-fb-lsd"] = REGEXP_LSD.findall(html)[0]
+        lsd_values = REGEXP_LSD.findall(html) or REGEXP_THREADS_LSD.findall(html)
+        if not lsd_values:
+            raise RuntimeError("Cannot bootstrap public Threads session: LSD value is unavailable")
+        self.session.headers["x-fb-lsd"] = lsd_values[0]
         self._user_id_cache = {}
 
-    def _extract_profile(self, json_data: dict) -> ThreadsProfile:
-        user = json_data["data"]["user"]
+    @staticmethod
+    def _response_keys(data: Any) -> List[str]:
+        return sorted(data.keys()) if isinstance(data, dict) else []
+
+    def _graphql_query(self, query: Dict[str, Any], variables: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute a public GraphQL query without retaining transient browser data."""
+        operation = query["operation"]
+        headers = dict(query["headers"])
+        headers["x-fb-friendly-name"] = operation
+        data = {
+            "fb_api_req_friendly_name": operation,
+            "variables": json.dumps(variables),
+            "lsd": self.session.headers["x-fb-lsd"],
+            "doc_id": query["doc_id"],
+        }
+        response = self.request(method=query["method"], url=query["url"], headers=headers, data=data)
+        if response.status_code in (401, 403, 429):
+            raise RuntimeError(
+                f"Public Threads collection was blocked for {operation} (HTTP {response.status_code}); try again later"
+            )
+        if response.status_code >= 400:
+            raise RuntimeError(f"Public Threads request failed for {operation} (HTTP {response.status_code})")
+        content_type = response.headers.get("content-type", "")
+        if "html" in content_type.lower():
+            raise RuntimeError(f"Public Threads response was unavailable for {operation} (HTML response)")
+        try:
+            result = response.json()
+        except ValueError:
+            raise RuntimeError(f"Public Threads response was invalid JSON for {operation}")
+        if not isinstance(result, dict) or not isinstance(result.get("data"), dict):
+            raise RuntimeError(
+                f"Public Threads response had unexpected shape for {operation}: top-level keys {self._response_keys(result)}"
+            )
+        return result
+
+    @staticmethod
+    def _response_user(data: Dict[str, Any], operation: str) -> Dict[str, Any]:
+        user = data["data"].get("user")
+        if not isinstance(user, dict):
+            raise RuntimeError(f"Public Threads response had no profile data for {operation}")
+        return user
+
+    def _extract_profile(self, json_data: Dict[str, Any]) -> ThreadsProfile:
+        user = self._response_user(json_data, "profile query")
         pictures = []
-        if "profile_pic_url" in user:
-            pictures.append(Picture(url=user["profile_pic_url"], width=150, height=150))  # TODO: check hard-coded size
+        profile_picture_url = user.get("profile_pic_url")
+        if profile_picture_url:
+            pictures.append(Picture(url=profile_picture_url, width=150, height=150))
         pictures.extend(
-            [
-                Picture(url=pic["url"], width=pic["width"], height=pic["height"])
-                for pic in user.get("hd_profile_pic_versions", [])
-            ]
+            Picture(url=pic["url"], width=pic.get("width"), height=pic.get("height"))
+            for pic in user.get("hd_profile_pic_versions") or []
+            if pic.get("url")
         )
-        # TODO: bio_links not working?
-        if "bio_links" in user:
-            bio_links = [
-                Link(url=link["url"], is_verified=link["is_verified"], id=int(link["link_id"]))
-                for link in user.get("bio_links", [])
-            ]
-        else:
-            bio_links = []
+        bio_links = [
+            Link(
+                url=link["url"],
+                is_verified=link.get("is_verified"),
+                id=int(link["link_id"]) if link.get("link_id") is not None else None,
+            )
+            for link in user.get("bio_links") or []
+            if link.get("url")
+        ]
         return ThreadsProfile(
             id=int(user["id"]),
             username=user["username"],
-            full_name=user["full_name"],
-            biography=user["biography"],
-            is_verified=user["is_verified"],
-            followers=user["follower_count"],
+            full_name=user.get("full_name") or "",
+            biography=user.get("biography") or "",
+            is_verified=user.get("is_verified"),
+            followers=user.get("follower_count"),
             pictures=pictures,
-            is_private=user["text_post_app_is_private"],
+            is_private=user.get("text_post_app_is_private"),
             bio_links=bio_links,
             is_threads_only_user=user.get("is_threads_only_user"),
         )
 
     def simple_profile(self, username: str, raw: bool = False) -> Union[ThreadsProfile, Dict[str, Any]]:
-        """Get basic profile information. For complete info, use `.full_profile`"""
-        query_name = "BarcelonaUsernameHoverCardImplQuery"
-        headers = {
-            "x-fb-friendly-name": query_name,
-        }
-        query_variables = {
-            "username": username,
-            "__relay_internal__pv__BarcelonaShouldShowFediverseM075Featuresrelayprovider": "false",
-        }
-        data = {
-            "fb_api_req_friendly_name": query_name,
-            "variables": json.dumps(query_variables),
-            "lsd": self.session.headers["x-fb-lsd"],
-            "doc_id": "7679337195500348",
-        }
-        response = self.request(method="POST", url=self.graphql_url, headers=headers, data=data)
-        data = response.json()
+        """Get basic profile information. For complete info, use `.profile`."""
+        variables = dict(self.public_username_query["variables"])
+        variables["username"] = username
+        data = self._graphql_query(self.public_username_query, variables)
         if raw:
             return data
         profile = self._extract_profile(data)
@@ -78,28 +152,15 @@ class Threads(BaseClient):
         return profile
 
     def profile_from_user_id(self, user_id: int, raw: bool = False) -> Union[ThreadsProfile, Dict[str, Any]]:
-        """Get full profile info for an user. If you only have the username, get the ID with `simple_profile()`"""
-        query_name = "BarcelonaProfilePageQuery"
-        headers = {
-            "x-fb-friendly-name": query_name,
-        }
-        query_variables = {
-            "userID": user_id,
-            "__relay_internal__pv__BarcelonaIsLoggedInrelayprovider": "false",
-            "__relay_internal__pv__BarcelonaIsPASTISWarningEnabledrelayprovider": "false",
-            "__relay_internal__pv__BarcelonaIsSableEnabledrelayprovider": "false",
-            "__relay_internal__pv__BarcelonaIsLinkVerificationEnabledrelayprovider": "false",
-            "__relay_internal__pv__BarcelonaShouldShowFediverseM075Featuresrelayprovider": "false",
-        }
-        data = {
-            "fb_api_req_friendly_name": query_name,
-            "variables": json.dumps(query_variables),
-            "lsd": self.session.headers["x-fb-lsd"],
-            "doc_id": "8454848744553415",
-        }
-        response = self.request(method="POST", url=self.graphql_url, headers=headers, data=data)
-        data = response.json()
-        return self._extract_profile(data) if not raw else data  # `raw` is useful for debugging purposes
+        """Get complete public profile information by numeric user ID."""
+        variables = dict(self.public_profile_query["variables"])
+        variables["userID"] = str(user_id)
+        data = self._graphql_query(self.public_profile_query, variables)
+        if raw:
+            return data
+        profile = self._extract_profile(data)
+        self._user_id_cache[profile.username] = profile.id
+        return profile
 
     def profile_from_username(self, username: str, raw: bool = False) -> Union[ThreadsProfile, Dict[str, Any]]:
         if username in self._user_id_cache:
@@ -111,9 +172,8 @@ class Threads(BaseClient):
 
     def profile(self, username_or_id: Union[str, int], raw: bool = False) -> Union[ThreadsProfile, Dict[str, Any]]:
         if isinstance(username_or_id, int) or username_or_id.isdigit():
-            return self.profile_from_user_id(username_or_id)
-        else:
-            return self.profile_from_username(username_or_id)
+            return self.profile_from_user_id(username_or_id, raw=raw)
+        return self.profile_from_username(username_or_id, raw=raw)
 
     def _extract_post(self, post_data: dict) -> ThreadsPost:
         if len(post_data.get("carousel_media") or []) > 0:
