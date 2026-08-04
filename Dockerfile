@@ -18,18 +18,23 @@ RUN addgroup --gid ${GID} python \
   && chown -R python:python /app
 
 COPY --chown=python:python pyproject.toml README.md /app/
-RUN mkdir -p /app/outgram \
-  && touch /app/outgram/__init__.py
+# Install dependencies without installing a placeholder copy of outgram. A
+# placeholder package makes the console script point to stale source when the
+# final project installation has the same version.
 RUN --mount=type=cache,target=/root/.cache/pip \
   pip install --cache-dir /root/.cache/pip --upgrade pip \
-  && pip install --cache-dir /root/.cache/pip ".[img]"
+  && python -c "import tomllib; project = tomllib.load(open('pyproject.toml', 'rb'))['project']; print('\\n'.join(project['dependencies'] + project['optional-dependencies']['img']))" > /tmp/runtime-requirements.txt \
+  && pip install --cache-dir /root/.cache/pip -r /tmp/runtime-requirements.txt \
+  && rm /tmp/runtime-requirements.txt
 
 ARG ENV_TYPE=production
 ENV ENV_TYPE=${ENV_TYPE}
 RUN if [ "$(echo "$ENV_TYPE" | tr '[:upper:]' '[:lower:]')" != "production" ]; then \
       apt-get update \
       && apt-get install -y --no-install-recommends git make \
-      && pip install --cache-dir /root/.cache/pip ".[dev]" \
+      && python -c "import tomllib; print('\\n'.join(tomllib.load(open('pyproject.toml', 'rb'))['project']['optional-dependencies']['dev']))" > /tmp/dev-requirements.txt \
+      && pip install --cache-dir /root/.cache/pip -r /tmp/dev-requirements.txt \
+      && rm /tmp/dev-requirements.txt \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*; \
     fi
