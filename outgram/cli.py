@@ -6,6 +6,7 @@ from typing import Any, List, Optional, Union
 from zipfile import ZipFile
 
 from . import __version__
+from .export import export_instagram_catalog
 from .instagram import Instagram
 from .threads import Threads
 
@@ -320,6 +321,38 @@ def main():
     parser_instagram_post.add_argument("post_code", nargs="+")
     parser_instagram_post.add_argument("output_csv", type=Path)
 
+    parser_instagram_export = network_subparsers["instagram"].add_parser(
+        "export",
+        description="Export collected Instagram post metadata as Markdown and HTML.",
+    )
+    parser_instagram_export.add_argument("input_csv", type=Path, help="Collected post CSV file")
+    parser_instagram_export.add_argument(
+        "output",
+        type=Path,
+        help="Output file, or output name without an extension when exporting both formats",
+    )
+    parser_instagram_export.add_argument("-u", "--username", required=True, help="Instagram profile username")
+    parser_instagram_export.add_argument(
+        "-c",
+        "--collected-at",
+        required=True,
+        help="Human-readable timestamp describing when the data was collected",
+    )
+    parser_instagram_export.add_argument(
+        "-t",
+        "--transcriptions-dir",
+        type=Path,
+        help="Directory containing post_<id>_*.vtt transcription files",
+    )
+    parser_instagram_export.add_argument(
+        "-f",
+        "--format",
+        dest="output_format",
+        choices=("markdown", "html", "both"),
+        default="both",
+        help="Output format (default: both)",
+    )
+
     args = parser.parse_args()
 
     if args.action == "profile":
@@ -365,6 +398,18 @@ def main():
             max_posts=args.max_posts,
             quiet=args.quiet,
         )
+
+    elif (args.network, args.action) == ("instagram", "export"):
+        written = export_instagram_catalog(
+            input_csv=args.input_csv,
+            output=args.output,
+            profile=args.profile,
+            collected_at=args.collected_at,
+            transcriptions_dir=args.transcriptions_dir,
+            output_format=args.output_format,
+        )
+        for path in written:
+            print("Generated: {}".format(path))
 
     # TODO: implement threads-post
 

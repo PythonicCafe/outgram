@@ -441,6 +441,22 @@ outgram instagram archive \
 ```
 
 
+### Instagram Catalog Export
+
+Export a collected Instagram post CSV as both Markdown and HTML. The output argument is used as a filename prefix when both formats are selected; this example creates `docs/instagram-catalog.md` and `docs/instagram-catalog.html`.
+
+```shell
+outgram instagram export \
+    --profile crio.cafe \
+    --collected-at "2026-07-31 09:16 UTC" \
+    --transcriptions-dir data/transcription \
+    data/instagram-profile-posts.csv \
+    docs/instagram-catalog
+```
+
+Use `--format markdown` or `--format html` to generate a single format. In that case the output path is used unchanged.
+
+
 ## Data Completion
 
 It's important to note that the API may send you incomplete information depending on how you get that information, for example:
