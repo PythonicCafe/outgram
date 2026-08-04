@@ -12,7 +12,13 @@
 - Build and validate distributions: `make package-build`
 - Open a development shell: `make bash`
 
-`make test` includes doctests and coverage. Instagram live tests are opt-in; do not enable them for routine local or CI runs. Existing Threads integration tests still make real public requests.
+`make test` includes doctests and coverage. Instagram live tests are opt-in; do not enable them for routine local or CI runs. Existing Threads integration tests still make real public requests. The Docker Compose development image installs the `img` and `dev` extras; rebuild it with `make build` after dependency or packaging changes.
+
+## Packaging
+
+- `pyproject.toml` is the packaging source of truth; do not reintroduce `setup.py` or `setup.cfg`.
+- Keep the declared Python requirement at 3.7 or newer, including build-system and runtime dependency constraints.
+- Put optional runtime dependencies in an appropriate extra and development-only tools in the `dev` extra. Validate distributable artifacts with `make package-build`.
 
 ## Scope and compatibility
 
@@ -37,6 +43,7 @@
 - CSV output uses `csv.DictWriter` with explicit field names. Create output parent directories before writing.
 - Preserve `--quiet` behavior and configured `--min-wait`/`--max-wait` pacing. Do not print progress when quiet is selected.
 - Archives contain CSV metadata and downloaded media in a ZIP. Respect requested post limits before downloading media.
+- `outgram instagram export` is an offline transformation of a collected post CSV into Markdown and/or HTML. Create output parent directories, preserve the requested output-path semantics (a prefix for both formats; the exact path for one), and escape CSV-derived text in HTML.
 
 ## Tests and documentation
 
