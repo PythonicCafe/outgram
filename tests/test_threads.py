@@ -1,12 +1,23 @@
 """End-to-end tests for the command-line interface main functions, which will run most part of the codebase"""
 
 import csv
+import os
 import random
 from collections import Counter
+
+import pytest
 from zipfile import ZipFile
 
 from outgram.cli import archive, collect_profile, collect_profile_posts
 from outgram.threads import Threads
+
+pytestmark = [
+    pytest.mark.threads_smoke,
+    pytest.mark.skipif(
+        os.getenv("OUTGRAM_RUN_THREADS_SMOKE") != "1",
+        reason="set OUTGRAM_RUN_THREADS_SMOKE=1 to run live Threads smoke tests",
+    ),
+]
 
 MIN_WAIT = 5.0
 MAX_WAIT = 10.0

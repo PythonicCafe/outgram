@@ -67,4 +67,5 @@ packages = ["outgram"]
 [tool.pytest.ini_options]
 markers = [
     "instagram_smoke: live public-Instagram smoke test; requires OUTGRAM_RUN_SMOKE=1",
+    "threads_smoke: live public-Threads smoke test; requires OUTGRAM_RUN_THREADS_SMOKE=1",
 ]
