@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Summarize Instagram API requests from a browser-exported HAR file.
+"""Safely summarize public Instagram and Threads requests from a HAR file.
 
-The output deliberately excludes cookies, authorization headers and response bodies. It is intended to identify stale
-persisted-query document IDs and the request shape that outgram must support.
+The output deliberately excludes request and response bodies, cookies,
+authorization data, CSRF/LSD values, session/device identifiers and media URLs.
+It is intended to identify persisted-query document IDs and request shapes that
+outgram must support.
 """
 
 import argparse
@@ -12,11 +14,16 @@ from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import parse_qs, urlparse
 
 INTERESTING_PATHS = ("/graphql/", "/api/graphql", "/api/v1/")
+SENSITIVE_WORDS = ("auth", "cookie", "csrf", "device", "did", "lsd", "password", "session", "token")
 
 
 def first(values: Dict[str, List[str]], name: str):
     value = values.get(name, [])
     return value[0] if value else None
+
+
+def is_sensitive(name: str) -> bool:
+    return any(word in name.lower() for word in SENSITIVE_WORDS)
 
 
 def request_parameters(request: Dict[str, Any]) -> Dict[str, List[str]]:
@@ -28,17 +35,51 @@ def request_parameters(request: Dict[str, Any]) -> Dict[str, List[str]]:
     return result
 
 
-def redact(value: Any) -> Any:
-    """Remove browser/session identifiers before displaying request variables."""
-    sensitive = ("auth", "cookie", "csrf", "device", "did", "lsd", "password", "session", "token")
+def value_shape(value: Any, depth: int = 0) -> Any:
+    """Describe JSON types without retaining values or sensitive field names."""
+    if depth == 3:
+        return type(value).__name__
     if isinstance(value, dict):
         return {
-            key: "[redacted]" if any(word in key.lower() for word in sensitive) else redact(item)
+            "[redacted]" if is_sensitive(key) else key: value_shape(item, depth + 1)
             for key, item in value.items()
         }
     if isinstance(value, list):
-        return [redact(item) for item in value]
-    return value
+        return [value_shape(value[0], depth + 1)] if value else []
+    if value is None:
+        return "null"
+    return type(value).__name__
+
+
+def response_summary(response: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a small structural summary without exposing a response body."""
+    content = response.get("content", {})
+    result = {
+        "content_type": next(
+            (header["value"] for header in response.get("headers", []) if header["name"].lower() == "content-type"),
+            None,
+        ),
+        "size": content.get("size"),
+    }
+    text = content.get("text")
+    if not text:
+        return result
+    try:
+        data = json.loads(text)
+    except (TypeError, ValueError):
+        result["shape"] = "non-json"
+        return result
+    result["shape"] = value_shape(data)
+    page_info = data.get("data", {}).get("mediaData", {}).get("page_info", {}) if isinstance(data, dict) else {}
+    result["has_page_info"] = bool(page_info)
+    result["has_end_cursor"] = "end_cursor" in page_info
+    result["has_next_page"] = "has_next_page" in page_info
+    return result
+
+
+def relevant_header_names(headers: List[Dict[str, str]]) -> List[str]:
+    """Return non-sensitive request header names only."""
+    return sorted({header["name"] for header in headers if not is_sensitive(header["name"])})
 
 
 def relevant(entries: Iterable[Dict[str, Any]], profile: Optional[str]):
@@ -53,10 +94,12 @@ def relevant(entries: Iterable[Dict[str, Any]], profile: Optional[str]):
             (header["value"] for header in request.get("headers", []) if header["name"].lower() == "referer"),
             "",
         )
-        # Timeline variables commonly contain only a numeric user ID; referer is
-        # therefore also used to exclude unrelated recommendations/dialogs.
         if profile and profile not in request["url"] and profile not in (variables or "") and profile not in referer:
             continue
+        try:
+            variables_shape = value_shape(json.loads(variables)) if variables else None
+        except ValueError:
+            variables_shape = "invalid-json"
         response = entry.get("response", {})
         yield {
             "entry": index,
@@ -65,12 +108,12 @@ def relevant(entries: Iterable[Dict[str, Any]], profile: Optional[str]):
             "status": response.get("status"),
             "friendly_name": first(parameters, "fb_api_req_friendly_name"),
             "doc_id": first(parameters, "doc_id"),
-            "variables": redact(json.loads(variables)) if variables else None,
-            "response_content_type": next(
-                (header["value"] for header in response.get("headers", []) if header["name"].lower() == "content-type"),
-                None,
+            "variables": variables_shape,
+            "form_parameters": sorted(
+                "[redacted]" if is_sensitive(name) else name for name in parameters
             ),
-            "response_size": response.get("content", {}).get("size"),
+            "request_headers": relevant_header_names(request.get("headers", [])),
+            "response": response_summary(response),
         }
 
 
@@ -82,34 +125,40 @@ def main():
         "--username",
         "--profile",
         dest="username",
-        help="Optional username: retain only requests whose URL/variables mention it",
+        help="Optional username: retain only requests whose URL, variables or referrer mention it",
     )
-    parser.add_argument("-j", "--json", action="store_true", help="Emit JSON instead of a human-readable table")
+    parser.add_argument("-j", "--json", action="store_true", help="Emit JSON instead of a human-readable summary")
     args = parser.parse_args()
-    har_filename = args.har
-    username = args.username
-    output_json = args.json
 
-    har = json.loads(har_filename.read_text(encoding="utf-8"))
-    rows = list(relevant(har["log"]["entries"], username))
-    if output_json:
+    har = json.loads(args.har.read_text(encoding="utf-8"))
+    rows = list(relevant(har["log"]["entries"], args.username))
+    if args.json:
         print(json.dumps(rows, indent=2, ensure_ascii=False))
         return
-
     if not rows:
-        print("No matching Instagram API requests found.")
+        print("No matching public API requests found.")
         return
     for row in rows:
         print(f"[{row['entry']}] {row['method']} {row['status']} {row['endpoint']}")
         print(f"  operation: {row['friendly_name'] or '-'}")
         print(f"  doc_id: {row['doc_id'] or '-'}")
         print(f"  variables: {json.dumps(row['variables'], ensure_ascii=False)}")
-        print(f"  response: {row['response_content_type'] or '-'}, {row['response_size'] or 0} bytes")
+        print(f"  form parameters: {', '.join(row['form_parameters']) or '-'}")
+        print(f"  request headers: {', '.join(row['request_headers']) or '-'}")
+        response = row["response"]
+        print(f"  response: {response['content_type'] or '-'}, {response['size'] or 0} bytes")
+        print(f"  response shape: {json.dumps(response.get('shape'), ensure_ascii=False)}")
+        print(
+            "  pagination: page_info={}, end_cursor={}, has_next_page={}".format(
+                response.get("has_page_info", False),
+                response.get("has_end_cursor", False),
+                response.get("has_next_page", False),
+            )
+        )
 
 
 if __name__ == "__main__":
     try:
         main()
     except BrokenPipeError:
-        # Allow piping a large summary to tools such as `head`.
         pass
