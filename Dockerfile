@@ -17,7 +17,9 @@ RUN addgroup --gid ${GID} python \
   && adduser --disabled-password --gecos "" --home /app --uid ${UID} --gid ${GID} python \
   && chown -R python:python /app
 
-COPY --chown=python:python pyproject.toml /app/
+COPY --chown=python:python pyproject.toml README.md /app/
+RUN mkdir -p /app/outgram \
+  && touch /app/outgram/__init__.py
 RUN --mount=type=cache,target=/root/.cache/pip \
   pip install --cache-dir /root/.cache/pip --upgrade pip \
   && pip install --cache-dir /root/.cache/pip ".[img]"
@@ -32,4 +34,6 @@ RUN if [ "$(echo "$ENV_TYPE" | tr '[:upper:]' '[:lower:]')" != "production" ]; t
     fi
 
 COPY --chown=python:python . /app/
+RUN --mount=type=cache,target=/root/.cache/pip \
+  pip install --cache-dir /root/.cache/pip --no-deps .
 USER python
