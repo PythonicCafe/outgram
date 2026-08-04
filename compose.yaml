@@ -4,7 +4,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        ENV_TYPE: development
+        UID: "${UID:-1000}"
+        GID: "${GID:-1000}"
     pull_policy: build
     image: outgram:latest
+    working_dir: /app
     volumes:
-      - ${PWD}:/app
+      - ./:/app

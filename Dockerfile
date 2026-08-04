@@ -1,22 +1,35 @@
+# syntax=docker/dockerfile:1
 FROM python:3.12-slim-bookworm
 
 ENV PYTHONUNBUFFERED=1
-ARG DEV_BUILD
+ENV PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
 
-RUN apt update \
-  && apt upgrade -y \
-  && apt install -y build-essential ffmpeg python3-dev wget \
-  && apt purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
-  && apt clean \
+RUN apt-get update \
+  && apt-get upgrade -y \
+  && apt-get install -y --no-install-recommends build-essential ffmpeg python3-dev wget \
+  && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
-RUN addgroup --gid ${GID:-1000} python \
-  && adduser --disabled-password --gecos "" --home /app --uid ${UID:-1000} --gid ${GID:-1000} python \
+ARG UID=1000
+ARG GID=1000
+RUN addgroup --gid ${GID} python \
+  && adduser --disabled-password --gecos "" --home /app --uid ${UID} --gid ${GID} python \
   && chown -R python:python /app
 
-COPY setup.cfg install_packages.py /app/
-RUN pip install --no-cache-dir -U pip
-RUN python /app/install_packages.py
+COPY --chown=python:python pyproject.toml /app/
+RUN --mount=type=cache,target=/root/.cache/pip \
+  pip install --cache-dir /root/.cache/pip --upgrade pip \
+  && pip install --cache-dir /root/.cache/pip ".[img]"
 
-COPY . /app/
+ARG ENV_TYPE=production
+RUN if [ "$(echo "$ENV_TYPE" | tr '[:upper:]' '[:lower:]')" != "production" ]; then \
+      apt-get update \
+      && apt-get install -y --no-install-recommends git \
+      && pip install --cache-dir /root/.cache/pip ".[dev]" \
+      && apt-get clean \
+      && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+COPY --chown=python:python . /app/
+USER python
