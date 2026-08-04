@@ -3,7 +3,7 @@ import json
 import re
 import uuid
 from html.parser import HTMLParser
-from typing import Any, Dict, Generator, List, Union
+from typing import Any, Dict, Generator, List, Tuple, Union
 
 from .client import BaseClient
 from .models import Link, Picture, ThreadsPost, ThreadsProfile, Video
@@ -92,15 +92,21 @@ class Threads(BaseClient):
     def __post_init__(self):
         self.session.headers.update({"origin": self.main_url.rstrip("/")})
         self._user_id_cache = {}
+        self._public_page_cache = {}
 
     @staticmethod
     def _public_page_headers() -> Dict[str, str]:
+        """Headers for a public document navigation, not an XHR request."""
         return {
-            "accept": "text/html",
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "accept-language": "en-US,en;q=0.5",
+            "origin": None,
             "sec-fetch-dest": "document",
             "sec-fetch-mode": "navigate",
             "sec-fetch-site": "none",
             "sec-fetch-user": "?1",
+            "upgrade-insecure-requests": "1",
+            "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0",
         }
 
     @staticmethod
@@ -165,8 +171,21 @@ class Threads(BaseClient):
             )
         return results
 
+    def _public_page_data(
+        self, username: str
+    ) -> Tuple[str, List[Dict[str, Any]]]:
+        """Return the public page HTML and SSR results from one navigation."""
+        cache = getattr(self, "_public_page_cache", None)
+        if cache is None:
+            cache = {}
+            self._public_page_cache = cache
+        if username not in cache:
+            html = self._public_page_html(username)
+            cache[username] = (html, self._ssr_results(html, username))
+        return cache[username]
+
     def _public_page_results(self, username: str) -> List[Dict[str, Any]]:
-        return self._ssr_results(self._public_page_html(username), username)
+        return self._public_page_data(username)[1]
 
     @staticmethod
     def _bootstrap_match(pattern: re.Pattern, html: str, name: str) -> str:
@@ -447,8 +466,7 @@ class Threads(BaseClient):
     def profile_posts_from_username(
         self, username: str, raw: bool = False
     ) -> Generator[Union[ThreadsPost, Dict[str, Any]], None, None]:
-        html = self._public_page_html(username)
-        results = self._ssr_results(html, username)
+        html, results = self._public_page_data(username)
         timeline = self._timeline(self._result_with("mediaData", results))
         profile = self._result_with("user", results)["data"]["user"]
         user_id = int(profile["id"])

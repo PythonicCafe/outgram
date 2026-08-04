@@ -57,11 +57,15 @@ def test_profile_from_username_reads_public_ssr_data():
             "method": "GET",
             "url": "https://www.threads.com/@example.person",
             "headers": {
-                "accept": "text/html",
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-language": "en-US,en;q=0.5",
+                "origin": None,
                 "sec-fetch-dest": "document",
                 "sec-fetch-mode": "navigate",
                 "sec-fetch-site": "none",
                 "sec-fetch-user": "?1",
+                "upgrade-insecure-requests": "1",
+                "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0",
             },
         }
     ]
@@ -91,6 +95,19 @@ def test_profile_posts_from_username_reads_first_ssr_page():
     assert posts[0].links[0].url == "https://example.invalid/"
     assert isinstance(posts[0].media[0], Picture)
     assert posts[0].media[0].width == 800
+
+
+def test_profile_and_posts_reuse_one_public_page_navigation():
+    calls = []
+    response = DummyResponse(public_page())
+    client = bare_client(response)
+    client.request = lambda **kwargs: calls.append(kwargs) or response
+
+    profile = client.profile_from_username("example.person")
+    post = next(client.profile_posts_from_username("example.person"))
+
+    assert profile.username == post.username == "example.person"
+    assert len(calls) == 1
 
 
 def test_profile_posts_follow_public_ssr_cursor():
