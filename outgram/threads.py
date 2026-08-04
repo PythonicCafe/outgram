@@ -1,10 +1,19 @@
 import datetime
 import json
+import re
+import uuid
 from html.parser import HTMLParser
 from typing import Any, Dict, Generator, List, Union
 
 from .client import BaseClient
 from .models import Link, Picture, ThreadsPost, ThreadsProfile, Video
+
+REGEXP_APP_ID = re.compile(r'"APP_ID":"([^"]+)"')
+REGEXP_CANONICAL_ROUTE = re.compile(r'"canonicalRouteName":"([^"]+)"')
+REGEXP_LSD = re.compile(r'\["LSD",\[\],\{"token":"([^"]+)"')
+REGEXP_SITE_DATA = re.compile(r'\["SiteData",\[\],(\{.*?\}),\d+\]')
+REGEXP_SECURITY_CONFIG = re.compile(r'\["InstagramSecurityConfig",\[\],(\{.*?\}),\d+\]')
+REGEXP_BLOKS_VERSION = re.compile(r'\["WebBloksVersioningID",\[\],(\{.*?\}),\d+\]')
 
 
 class ThreadsPublicPageHTMLParser(HTMLParser):
@@ -31,6 +40,51 @@ class ThreadsPublicPageHTMLParser(HTMLParser):
 
 class Threads(BaseClient):
     main_url = "https://www.threads.com/"
+    graphql_url = main_url + "graphql/query"
+
+    # Observed in the logged-out public Web client. Persisted query IDs and
+    # feature variables can expire; keep request-specific settings together.
+    public_timeline_refetch_query = {
+        "doc_id": "28185048804453360",
+        "operation": "BarcelonaProfileThreadsTabRefetchableDirectQuery",
+        "root_field_name": "xdt_api__v1__text_feed__user_id__profile__connection",
+        "asbd_id": "359341",
+        "variables": {
+            "allow_page_info_for_lox_user": True,
+            "before": None,
+            "first": 11,
+            "last": None,
+            "__relay_internal__pv__BarcelonaIsLoggedInrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasProfileSelfReplyContextrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasDearAlgoConsumptionrelayprovider": True,
+            "__relay_internal__pv__BarcelonaHasEventBadgerelayprovider": False,
+            "__relay_internal__pv__BarcelonaGenAIRepliesEnabledrelayprovider": False,
+            "__relay_internal__pv__BarcelonaIsSearchDiscoveryEnabledrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasCommunitiesrelayprovider": True,
+            "__relay_internal__pv__BarcelonaHasGameScoreSharerelayprovider": True,
+            "__relay_internal__pv__BarcelonaHasPublicViewCountCardrelayprovider": True,
+            "__relay_internal__pv__BarcelonaHasCommunityEntityCardrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasScorecardCommunityrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasSportTeamAllegianceCardrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasMusicrelayprovider": True,
+            "__relay_internal__pv__BarcelonaHasNewspaperLinkStylerelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasMessagingrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasPodcastV2Consumptionrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasPodcastTranscriptConsumptionrelayprovider": False,
+            "__relay_internal__pv__BarcelonaShouldFulfillLightboxQueryrelayprovider": True,
+            "__relay_internal__pv__BarcelonaHasViewerRepliedrelayprovider": True,
+            "__relay_internal__pv__BarcelonaHasPrivateRepliesDeprecationrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasGhostPostEmojiActivationrelayprovider": False,
+            "__relay_internal__pv__BarcelonaOptionalCookiesEnabledrelayprovider": True,
+            "__relay_internal__pv__BarcelonaHasDearAlgoWebProductionrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasWebFaviconsrelayprovider": False,
+            "__relay_internal__pv__BarcelonaIsCrawlerrelayprovider": False,
+            "__relay_internal__pv__BarcelonaHasCommunityTopContributorsrelayprovider": False,
+            "__relay_internal__pv__BarcelonaCanSeeSponsoredContentrelayprovider": False,
+            "__relay_internal__pv__BarcelonaShouldShowFediverseM075Featuresrelayprovider": False,
+            "__relay_internal__pv__BarcelonaIsInternalUserrelayprovider": False,
+        },
+    }
 
     # TODO: implement authentication
     # TODO: list post comments (needs authentication)
@@ -72,7 +126,7 @@ class Threads(BaseClient):
         for item in value:
             yield from Threads._relay_results(item)
 
-    def _public_page_results(self, username: str) -> List[Dict[str, Any]]:
+    def _public_page_html(self, username: str) -> str:
         response = self.request(
             method="GET",
             url=f"{self.main_url}@{username}",
@@ -91,8 +145,11 @@ class Threads(BaseClient):
             raise RuntimeError(
                 f"Public Threads profile response was unavailable for @{username} (expected HTML)"
             )
+        return response.text
+
+    def _ssr_results(self, html: str, username: str) -> List[Dict[str, Any]]:
         parser = ThreadsPublicPageHTMLParser()
-        parser.feed(response.text)
+        parser.feed(html)
         results = []
         for script in parser.scripts:
             if "RelayPrefetchedStreamCache" not in script:
@@ -107,6 +164,120 @@ class Threads(BaseClient):
                 f"Public Threads profile response had no SSR data for @{username}"
             )
         return results
+
+    def _public_page_results(self, username: str) -> List[Dict[str, Any]]:
+        return self._ssr_results(self._public_page_html(username), username)
+
+    @staticmethod
+    def _bootstrap_match(pattern: re.Pattern, html: str, name: str) -> str:
+        match = pattern.search(html)
+        if not match:
+            raise RuntimeError(
+                f"Public Threads profile response had no {name} bootstrap value"
+            )
+        return match.group(1)
+
+    def _timeline_refetch_bootstrap(self, html: str) -> Dict[str, Any]:
+        site_data = json.loads(
+            self._bootstrap_match(REGEXP_SITE_DATA, html, "SiteData")
+        )
+        security = json.loads(
+            self._bootstrap_match(REGEXP_SECURITY_CONFIG, html, "security")
+        )
+        bloks = json.loads(
+            self._bootstrap_match(REGEXP_BLOKS_VERSION, html, "Bloks version")
+        )
+        lsd = self._bootstrap_match(REGEXP_LSD, html, "LSD")
+        return {
+            "app_id": self._bootstrap_match(REGEXP_APP_ID, html, "application ID"),
+            "bloks_version": bloks["versioningID"],
+            "csrf_token": security["csrf_token"],
+            "lsd": lsd,
+            "route": self._bootstrap_match(
+                REGEXP_CANONICAL_ROUTE, html, "canonical route"
+            ),
+            "site_data": site_data,
+        }
+
+    @staticmethod
+    def _web_session_id() -> str:
+        value = uuid.uuid4().hex
+        return f"{value[:6]}:{value[6:12]}:{value[12:18]}"
+
+    def _timeline_refetch(
+        self, html: str, username: str, user_id: int, cursor: str
+    ) -> Dict[str, Any]:
+        query = self.public_timeline_refetch_query
+        bootstrap = self._timeline_refetch_bootstrap(html)
+        site_data = bootstrap["site_data"]
+        web_session_id = self._web_session_id()
+        variables = dict(query["variables"])
+        variables.update({"after": cursor, "userID": str(user_id)})
+        lsd = bootstrap["lsd"]
+        data = {
+            "av": "0",
+            "__user": "0",
+            "__a": "1",
+            "__req": "1",
+            "__hs": site_data["haste_session"],
+            "dpr": str(site_data["pr"]),
+            "__ccg": "EXCELLENT",
+            "__rev": str(site_data["__spin_r"]),
+            "__s": web_session_id,
+            "__hsi": site_data["hsi"],
+            "__dyn": "",
+            "__csr": "",
+            "__hsdp": "",
+            "__hblp": "",
+            "__sjsp": "",
+            "__comet_req": str(site_data["comet_env"]),
+            "lsd": lsd,
+            "jazoest": "2" + str(sum(ord(char) for char in lsd)),
+            "__spin_r": str(site_data["__spin_r"]),
+            "__spin_b": site_data["__spin_b"],
+            "__spin_t": str(site_data["__spin_t"]),
+            "__crn": bootstrap["route"],
+            "fb_api_caller_class": "RelayModern",
+            "fb_api_req_friendly_name": query["operation"],
+            "server_timestamps": "true",
+            "variables": json.dumps(variables),
+            "doc_id": query["doc_id"],
+        }
+        headers = {
+            "content-type": "application/x-www-form-urlencoded",
+            "referer": f"{self.main_url}@{username}",
+            "x-asbd-id": query["asbd_id"],
+            "x-bloks-version-id": bootstrap["bloks_version"],
+            "x-csrftoken": bootstrap["csrf_token"],
+            "x-fb-friendly-name": query["operation"],
+            "x-fb-lsd": lsd,
+            "x-ig-app-id": bootstrap["app_id"],
+            "x-logged-out-threads-migrated-request": "true",
+            "x-root-field-name": query["root_field_name"],
+            "x-web-session-id": web_session_id,
+        }
+        response = self.request(
+            method="POST", url=self.graphql_url, headers=headers, data=data
+        )
+        if response.status_code in (401, 403, 429):
+            raise RuntimeError(
+                f"Public Threads collection was blocked for {query['operation']} (HTTP {response.status_code}); try again later"
+            )
+        if response.status_code >= 400:
+            raise RuntimeError(
+                f"Public Threads request failed for {query['operation']} (HTTP {response.status_code})"
+            )
+        try:
+            result = response.json()
+        except ValueError:
+            raise RuntimeError(
+                f"Public Threads response was invalid JSON for {query['operation']}"
+            )
+        if not isinstance(result, dict) or not isinstance(result.get("data"), dict):
+            raise RuntimeError(
+                f"Public Threads response had unexpected shape for {query['operation']}"
+            )
+        return result
 
     @staticmethod
     def _result_with(data_name: str, results: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -276,27 +447,34 @@ class Threads(BaseClient):
     def profile_posts_from_username(
         self, username: str, raw: bool = False
     ) -> Generator[Union[ThreadsPost, Dict[str, Any]], None, None]:
-        timeline = self._timeline(
-            self._result_with("mediaData", self._public_page_results(username))
-        )
-        for edge in timeline["edges"]:
-            node = edge.get("node") if isinstance(edge, dict) else None
-            items = node.get("thread_items") if isinstance(node, dict) else None
-            post_data = (
-                items[0].get("post") if items and isinstance(items[0], dict) else None
-            )
-            if not isinstance(post_data, dict):
-                continue
-            if raw:
-                yield post_data
-            else:
-                post = self._extract_post(post_data)
-                self._user_id_cache[post.username] = post.user_id
-                yield post
-        page_info = timeline.get("page_info") or {}
-        if page_info.get("has_next_page") and page_info.get("end_cursor"):
-            raise RuntimeError(
-                "Public Threads timeline pagination is currently unavailable; collect only the first public page"
+        html = self._public_page_html(username)
+        results = self._ssr_results(html, username)
+        timeline = self._timeline(self._result_with("mediaData", results))
+        profile = self._result_with("user", results)["data"]["user"]
+        user_id = int(profile["id"])
+        while True:
+            for edge in timeline["edges"]:
+                node = edge.get("node") if isinstance(edge, dict) else None
+                items = node.get("thread_items") if isinstance(node, dict) else None
+                post_data = (
+                    items[0].get("post")
+                    if items and isinstance(items[0], dict)
+                    else None
+                )
+                if not isinstance(post_data, dict):
+                    continue
+                if raw:
+                    yield post_data
+                else:
+                    post = self._extract_post(post_data)
+                    self._user_id_cache[post.username] = post.user_id
+                    yield post
+            page_info = timeline.get("page_info") or {}
+            cursor = page_info.get("end_cursor")
+            if not page_info.get("has_next_page") or not cursor:
+                return
+            timeline = self._timeline(
+                self._timeline_refetch(html, username, user_id, cursor)
             )
 
     def profile_posts(
