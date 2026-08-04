@@ -78,7 +78,9 @@ class Threads(BaseClient):
         html = response.content.decode(response.apparent_encoding)
         lsd_values = REGEXP_LSD.findall(html) or REGEXP_THREADS_LSD.findall(html)
         if not lsd_values:
-            raise RuntimeError("Cannot bootstrap public Threads session: LSD value is unavailable")
+            raise RuntimeError(
+                "Cannot bootstrap public Threads session: LSD value is unavailable"
+            )
         self.session.headers["x-fb-lsd"] = lsd_values[0]
         self._user_id_cache = {}
 
@@ -86,7 +88,9 @@ class Threads(BaseClient):
     def _response_keys(data: Any) -> List[str]:
         return sorted(data.keys()) if isinstance(data, dict) else []
 
-    def _graphql_query(self, query: Dict[str, Any], variables: Dict[str, Any]) -> Dict[str, Any]:
+    def _graphql_query(
+        self, query: Dict[str, Any], variables: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Execute a public GraphQL query without retaining transient browser data."""
         operation = query["operation"]
         headers = dict(query["headers"])
@@ -97,20 +101,28 @@ class Threads(BaseClient):
             "lsd": self.session.headers["x-fb-lsd"],
             "doc_id": query["doc_id"],
         }
-        response = self.request(method=query["method"], url=query["url"], headers=headers, data=data)
+        response = self.request(
+            method=query["method"], url=query["url"], headers=headers, data=data
+        )
         if response.status_code in (401, 403, 429):
             raise RuntimeError(
                 f"Public Threads collection was blocked for {operation} (HTTP {response.status_code}); try again later"
             )
         if response.status_code >= 400:
-            raise RuntimeError(f"Public Threads request failed for {operation} (HTTP {response.status_code})")
+            raise RuntimeError(
+                f"Public Threads request failed for {operation} (HTTP {response.status_code})"
+            )
         content_type = response.headers.get("content-type", "")
         if "html" in content_type.lower():
-            raise RuntimeError(f"Public Threads response was unavailable for {operation} (HTML response)")
+            raise RuntimeError(
+                f"Public Threads response was unavailable for {operation} (HTML response)"
+            )
         try:
             result = response.json()
         except ValueError:
-            raise RuntimeError(f"Public Threads response was invalid JSON for {operation}")
+            raise RuntimeError(
+                f"Public Threads response was invalid JSON for {operation}"
+            )
         if not isinstance(result, dict) or not isinstance(result.get("data"), dict):
             raise RuntimeError(
                 f"Public Threads response had unexpected shape for {operation}: top-level keys {self._response_keys(result)}"
@@ -121,7 +133,9 @@ class Threads(BaseClient):
     def _response_user(data: Dict[str, Any], operation: str) -> Dict[str, Any]:
         user = data["data"].get("user")
         if not isinstance(user, dict):
-            raise RuntimeError(f"Public Threads response had no profile data for {operation}")
+            raise RuntimeError(
+                f"Public Threads response had no profile data for {operation}"
+            )
         return user
 
     def _extract_profile(self, json_data: Dict[str, Any]) -> ThreadsProfile:
@@ -157,7 +171,9 @@ class Threads(BaseClient):
             is_threads_only_user=user.get("is_threads_only_user"),
         )
 
-    def simple_profile(self, username: str, raw: bool = False) -> Union[ThreadsProfile, Dict[str, Any]]:
+    def simple_profile(
+        self, username: str, raw: bool = False
+    ) -> Union[ThreadsProfile, Dict[str, Any]]:
         """Get basic profile information. For complete info, use `.profile`."""
         variables = dict(self.public_username_query["variables"])
         variables["username"] = username
@@ -168,7 +184,9 @@ class Threads(BaseClient):
         self._user_id_cache[profile.username] = profile.id
         return profile
 
-    def profile_from_user_id(self, user_id: int, raw: bool = False) -> Union[ThreadsProfile, Dict[str, Any]]:
+    def profile_from_user_id(
+        self, user_id: int, raw: bool = False
+    ) -> Union[ThreadsProfile, Dict[str, Any]]:
         """Get complete public profile information by numeric user ID."""
         variables = dict(self.public_profile_query["variables"])
         variables["userID"] = str(user_id)
@@ -179,7 +197,9 @@ class Threads(BaseClient):
         self._user_id_cache[profile.username] = profile.id
         return profile
 
-    def profile_from_username(self, username: str, raw: bool = False) -> Union[ThreadsProfile, Dict[str, Any]]:
+    def profile_from_username(
+        self, username: str, raw: bool = False
+    ) -> Union[ThreadsProfile, Dict[str, Any]]:
         if username in self._user_id_cache:
             user_id = self._user_id_cache[username]
         else:
@@ -187,7 +207,9 @@ class Threads(BaseClient):
             user_id = simple_profile.id
         return self.profile_from_user_id(user_id=user_id, raw=raw)
 
-    def profile(self, username_or_id: Union[str, int], raw: bool = False) -> Union[ThreadsProfile, Dict[str, Any]]:
+    def profile(
+        self, username_or_id: Union[str, int], raw: bool = False
+    ) -> Union[ThreadsProfile, Dict[str, Any]]:
         if isinstance(username_or_id, int) or username_or_id.isdigit():
             return self.profile_from_user_id(username_or_id, raw=raw)
         return self.profile_from_username(username_or_id, raw=raw)
@@ -198,7 +220,9 @@ class Threads(BaseClient):
         for obj in inner_media:
             candidates = (obj.get("image_versions2") or {}).get("candidates") or []
             pictures = [
-                Picture(pic["url"], pic.get("width"), pic.get("height")) for pic in candidates if pic.get("url")
+                Picture(pic["url"], pic.get("width"), pic.get("height"))
+                for pic in candidates
+                if pic.get("url")
             ]
             pictures.sort(key=lambda picture: picture.width or 0, reverse=True)
             thumbnail = pictures[0] if pictures else None
@@ -225,7 +249,9 @@ class Threads(BaseClient):
             text += fragment.get("plaintext") or ""
             link = fragment.get("link_fragment") or {}
             if fragment.get("fragment_type") == "link" and link.get("uri"):
-                links.append(Link(url=link["uri"], display_text=link.get("display_text")))
+                links.append(
+                    Link(url=link["uri"], display_text=link.get("display_text"))
+                )
         user = post_data["user"]
         return ThreadsPost(
             id=post_data["id"],
@@ -234,7 +260,9 @@ class Threads(BaseClient):
             is_verified=user.get("is_verified"),
             text=text,
             links=links,
-            published_at=datetime.datetime.fromtimestamp(post_data["taken_at"], tz=datetime.timezone.utc),
+            published_at=datetime.datetime.fromtimestamp(
+                post_data["taken_at"], tz=datetime.timezone.utc
+            ),
             likes=post_data.get("like_count"),
             replies=info.get("direct_reply_count", 0),
             reposts=info.get("repost_count", 0),
@@ -245,7 +273,9 @@ class Threads(BaseClient):
             media_type=post_data.get("media_type"),
             accessibility_caption=post_data.get("accessibility_caption"),
             is_paid_partnership=post_data.get("is_paid_partnership"),
-            like_and_view_counts_disabled=post_data.get("like_and_view_counts_disabled"),
+            like_and_view_counts_disabled=post_data.get(
+                "like_and_view_counts_disabled"
+            ),
             has_audio=post_data.get("has_audio"),
             original_width=post_data.get("original_width"),
             original_height=post_data.get("original_height"),
@@ -256,11 +286,17 @@ class Threads(BaseClient):
     @staticmethod
     def _timeline(data: Dict[str, Any], operation: str) -> Dict[str, Any]:
         timeline = data["data"].get("mediaData")
-        if not isinstance(timeline, dict) or not isinstance(timeline.get("edges"), list):
-            raise RuntimeError(f"Public Threads response had no timeline data for {operation}")
+        if not isinstance(timeline, dict) or not isinstance(
+            timeline.get("edges"), list
+        ):
+            raise RuntimeError(
+                f"Public Threads response had no timeline data for {operation}"
+            )
         return timeline
 
-    def _timeline_page(self, query: Dict[str, Any], user_id: int, cursor: Optional[str] = None) -> Dict[str, Any]:
+    def _timeline_page(
+        self, query: Dict[str, Any], user_id: int, cursor: Optional[str] = None
+    ) -> Dict[str, Any]:
         variables = dict(query["variables"])
         variables["userID"] = str(user_id)
         if cursor is not None:
@@ -276,7 +312,11 @@ class Threads(BaseClient):
             for edge in timeline["edges"]:
                 node = edge.get("node") if isinstance(edge, dict) else None
                 items = node.get("thread_items") if isinstance(node, dict) else None
-                post_data = items[0].get("post") if items and isinstance(items[0], dict) else None
+                post_data = (
+                    items[0].get("post")
+                    if items and isinstance(items[0], dict)
+                    else None
+                )
                 if not isinstance(post_data, dict):
                     continue
                 if raw:
@@ -289,7 +329,9 @@ class Threads(BaseClient):
             cursor = page_info.get("end_cursor")
             if not page_info.get("has_next_page") or not cursor:
                 return
-            timeline = self._timeline_page(self.public_timeline_refetch_query, user_id, cursor)
+            timeline = self._timeline_page(
+                self.public_timeline_refetch_query, user_id, cursor
+            )
 
     def profile_posts_from_username(
         self, username: str, raw: bool = False

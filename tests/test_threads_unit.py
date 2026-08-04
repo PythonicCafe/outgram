@@ -37,7 +37,9 @@ def test_extract_profile_preserves_complete_public_data():
 
     assert profile.id == 101
     assert profile.pictures[-1].width == 640
-    assert [(link.url, link.id) for link in profile.bio_links] == [("https://example.invalid/", 55)]
+    assert [(link.url, link.id) for link in profile.bio_links] == [
+        ("https://example.invalid/", 55)
+    ]
 
 
 def test_extract_profile_accepts_missing_optional_fields():
@@ -50,7 +52,12 @@ def test_extract_profile_accepts_missing_optional_fields():
 
 @pytest.mark.parametrize(
     ("name", "media_class"),
-    [("text_post", None), ("photo_post", Picture), ("video_post", Video), ("carousel_post", None)],
+    [
+        ("text_post", None),
+        ("photo_post", Picture),
+        ("video_post", Video),
+        ("carousel_post", None),
+    ],
 )
 def test_extract_post_supports_public_media_shapes(name, media_class):
     post = bare_client()._extract_post(fixture_data()[name])
@@ -78,7 +85,9 @@ def test_profile_requests_forward_raw_and_cache_username():
 
     client.request = request
     assert client.simple_profile("example.person").id == 101
-    assert client.profile("101", raw=True)["data"]["user"]["username"] == "example.person"
+    assert (
+        client.profile("101", raw=True)["data"]["user"]["username"] == "example.person"
+    )
     assert calls[0]["data"]["doc_id"] == Threads.public_username_query["doc_id"]
     assert calls[1]["data"]["doc_id"] == Threads.public_profile_query["doc_id"]
 
@@ -87,8 +96,29 @@ def test_profile_posts_follow_cursor_and_stop_at_last_page():
     client = bare_client()
     data = fixture_data()
     pages = [
-        {"data": {"mediaData": {"edges": [{"node": {"thread_items": [{"post": data["text_post"]}]}}], "page_info": {"has_next_page": True, "end_cursor": "sanitized-cursor"}}}},
-        {"data": {"mediaData": {"edges": [{"node": {"thread_items": [{"post": data["photo_post"]}]}}], "page_info": {"has_next_page": False, "end_cursor": None}}}},
+        {
+            "data": {
+                "mediaData": {
+                    "edges": [
+                        {"node": {"thread_items": [{"post": data["text_post"]}]}}
+                    ],
+                    "page_info": {
+                        "has_next_page": True,
+                        "end_cursor": "sanitized-cursor",
+                    },
+                }
+            }
+        },
+        {
+            "data": {
+                "mediaData": {
+                    "edges": [
+                        {"node": {"thread_items": [{"post": data["photo_post"]}]}}
+                    ],
+                    "page_info": {"has_next_page": False, "end_cursor": None},
+                }
+            }
+        },
     ]
     calls = []
 
@@ -97,7 +127,10 @@ def test_profile_posts_follow_cursor_and_stop_at_last_page():
         return DummyResponse(pages.pop(0))
 
     client.request = request
-    assert [post.id for post in client.profile_posts_from_user_id(101)] == ["text-1", "photo-1"]
+    assert [post.id for post in client.profile_posts_from_user_id(101)] == [
+        "text-1",
+        "photo-1",
+    ]
     assert json.loads(calls[1]["data"]["variables"])["after"] == "sanitized-cursor"
 
 

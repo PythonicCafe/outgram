@@ -14,7 +14,17 @@ from typing import Any, Dict, Iterable, List, Optional
 from urllib.parse import parse_qs, urlparse
 
 INTERESTING_PATHS = ("/graphql/", "/api/graphql", "/api/v1/")
-SENSITIVE_WORDS = ("auth", "cookie", "csrf", "device", "did", "lsd", "password", "session", "token")
+SENSITIVE_WORDS = (
+    "auth",
+    "cookie",
+    "csrf",
+    "device",
+    "did",
+    "lsd",
+    "password",
+    "session",
+    "token",
+)
 
 
 def first(values: Dict[str, List[str]], name: str):
@@ -56,7 +66,11 @@ def response_summary(response: Dict[str, Any]) -> Dict[str, Any]:
     content = response.get("content", {})
     result = {
         "content_type": next(
-            (header["value"] for header in response.get("headers", []) if header["name"].lower() == "content-type"),
+            (
+                header["value"]
+                for header in response.get("headers", [])
+                if header["name"].lower() == "content-type"
+            ),
             None,
         ),
         "size": content.get("size"),
@@ -70,7 +84,11 @@ def response_summary(response: Dict[str, Any]) -> Dict[str, Any]:
         result["shape"] = "non-json"
         return result
     result["shape"] = value_shape(data)
-    page_info = data.get("data", {}).get("mediaData", {}).get("page_info", {}) if isinstance(data, dict) else {}
+    page_info = (
+        data.get("data", {}).get("mediaData", {}).get("page_info", {})
+        if isinstance(data, dict)
+        else {}
+    )
     result["has_page_info"] = bool(page_info)
     result["has_end_cursor"] = "end_cursor" in page_info
     result["has_next_page"] = "has_next_page" in page_info
@@ -79,7 +97,9 @@ def response_summary(response: Dict[str, Any]) -> Dict[str, Any]:
 
 def relevant_header_names(headers: List[Dict[str, str]]) -> List[str]:
     """Return non-sensitive request header names only."""
-    return sorted({header["name"] for header in headers if not is_sensitive(header["name"])})
+    return sorted(
+        {header["name"] for header in headers if not is_sensitive(header["name"])}
+    )
 
 
 def relevant(entries: Iterable[Dict[str, Any]], profile: Optional[str]):
@@ -91,10 +111,19 @@ def relevant(entries: Iterable[Dict[str, Any]], profile: Optional[str]):
         parameters = request_parameters(request)
         variables = first(parameters, "variables")
         referer = next(
-            (header["value"] for header in request.get("headers", []) if header["name"].lower() == "referer"),
+            (
+                header["value"]
+                for header in request.get("headers", [])
+                if header["name"].lower() == "referer"
+            ),
             "",
         )
-        if profile and profile not in request["url"] and profile not in (variables or "") and profile not in referer:
+        if (
+            profile
+            and profile not in request["url"]
+            and profile not in (variables or "")
+            and profile not in referer
+        ):
             continue
         try:
             variables_shape = value_shape(json.loads(variables)) if variables else None
@@ -119,7 +148,9 @@ def relevant(entries: Iterable[Dict[str, Any]], profile: Optional[str]):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("har", type=Path, help="HAR exported after visiting a public profile")
+    parser.add_argument(
+        "har", type=Path, help="HAR exported after visiting a public profile"
+    )
     parser.add_argument(
         "-u",
         "--username",
@@ -127,7 +158,12 @@ def main():
         dest="username",
         help="Optional username: retain only requests whose URL, variables or referrer mention it",
     )
-    parser.add_argument("-j", "--json", action="store_true", help="Emit JSON instead of a human-readable summary")
+    parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit JSON instead of a human-readable summary",
+    )
     args = parser.parse_args()
 
     har = json.loads(args.har.read_text(encoding="utf-8"))
@@ -146,8 +182,12 @@ def main():
         print(f"  form parameters: {', '.join(row['form_parameters']) or '-'}")
         print(f"  request headers: {', '.join(row['request_headers']) or '-'}")
         response = row["response"]
-        print(f"  response: {response['content_type'] or '-'}, {response['size'] or 0} bytes")
-        print(f"  response shape: {json.dumps(response.get('shape'), ensure_ascii=False)}")
+        print(
+            f"  response: {response['content_type'] or '-'}, {response['size'] or 0} bytes"
+        )
+        print(
+            f"  response shape: {json.dumps(response.get('shape'), ensure_ascii=False)}"
+        )
         print(
             "  pagination: page_info={}, end_cursor={}, has_next_page={}".format(
                 response.get("has_page_info", False),

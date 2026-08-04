@@ -38,7 +38,9 @@ class BaseMedia(BaseModel):
 
     def get_media(self) -> List[Type["BaseMedia"]]:
         """Return all media objects of this object"""
-        raise NotImplementedError("BaseMedia child class must implement `get_media` method")
+        raise NotImplementedError(
+            "BaseMedia child class must implement `get_media` method"
+        )
 
     def save(self, filename: Union[Path, str]):
         if self.content is None:
@@ -52,7 +54,9 @@ class BaseProfile(BaseModel):
 
     def get_media(self) -> List[Type[BaseMedia]]:
         """Return all media objects of this profile (not from its posts)"""
-        raise NotImplementedError("Profile child class must implement `get_media` method")
+        raise NotImplementedError(
+            "Profile child class must implement `get_media` method"
+        )
 
 
 class BasePost(BaseModel):
@@ -128,10 +132,14 @@ class Video(BaseMedia):
             "-show_streams",
             "-",
         ]
-        process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = subprocess.Popen(
+            cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
         stdout, stderr = process.communicate(input=self.content)
         if stderr:
-            raise RuntimeError(f"Error: checking video duration {stderr.decode('utf-8')}")
+            raise RuntimeError(
+                f"Error: checking video duration {stderr.decode('utf-8')}"
+            )
         data = json.loads(stdout)
         streams_duration = [float(stream["duration"]) for stream in data["streams"]]
         if streams_duration:
@@ -309,7 +317,10 @@ class InstagramPost(BasePost):
 
     def serialize(self) -> Dict[str, Any]:
         row = super().serialize()
-        flatten(row, {"author": InstagramProfile, "thumbnail": Picture, "location": Location})
+        flatten(
+            row,
+            {"author": InstagramProfile, "thumbnail": Picture, "location": Location},
+        )
         row["media"] = "\n".join(obj["url"] for obj in row["media"])
         row["author_picture_url"] = row.pop("author_picture")["url"]
         return row
