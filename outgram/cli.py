@@ -7,11 +7,9 @@ from typing import Any, List, Optional, Tuple, Union
 from zipfile import ZipFile, ZipInfo
 
 from . import __version__
-from .export import export_instagram_catalog
+from .export import export_instagram_catalog, export_threads_catalog
 from .instagram import Instagram
 from .threads import Threads
-
-# TODO: implement threads-archive
 
 
 class ProgressBar:
@@ -270,11 +268,9 @@ def instagram_post(
         progress.update(index, done=True, end="\n")
 
 
-def main():
-    MAX_POSTS = 96
-    MAX_POSTS_PER_USER = 48
-    class_map = {"instagram": Instagram, "threads": Threads}
-
+def _create_parser():
+    max_posts = 96
+    max_posts_per_user = 48
     parser = argparse.ArgumentParser(prog="outgram")
     parser.add_argument("--version", action="version", version=f"%(prog)s {'.'.join(map(str, __version__))}")
     parser.add_argument(
@@ -283,20 +279,20 @@ def main():
     parser.add_argument(
         "--max-wait", "-T", type=float, default=2.0, help="Maximum time (in seconds) to wait between requests"
     )
-    subparsers = parser.add_subparsers(dest="network", required=True)
+    subparsers = parser.add_subparsers(dest="network", metavar="NETWORK", required=True, help="Social network")
 
-    instagram_parser = subparsers.add_parser("instagram")
-    threads_parser = subparsers.add_parser("threads")
-    network_subparsers = {
-        "instagram": instagram_parser.add_subparsers(dest="action", required=True),
-        "threads": threads_parser.add_subparsers(dest="action", required=True),
-    }
+    network_subparsers = {}
+    for network in ("instagram", "threads"):
+        network_parser = subparsers.add_parser(network, help="Collect {} public data".format(network.title()))
+        network_subparsers[network] = network_parser.add_subparsers(
+            dest="action", metavar="ACTION", required=True, help="Collection action"
+        )
 
-    for network in class_map.keys():
-        network_subparser = network_subparsers[network]
+    for network, network_subparser in network_subparsers.items():
         parser_profile = network_subparser.add_parser(
             "profile",
-            description="Get information regarding one or more profiles. Only the biggest picture URL is exported. Only the URLs of bio_links are exported (separated by \\n)",
+            help="Collect profile metadata",
+            description="Get information regarding one or more profiles. Only the biggest picture URL is exported. Only the URLs of bio_links are exported (separated by \n)",
         )
         parser_profile.add_argument("--quiet", "-q", action="store_true", help="Do not show a progress bar")
         parser_profile.add_argument("username_or_id", nargs="+")
@@ -304,134 +300,90 @@ def main():
 
         parser_profile_posts = network_subparser.add_parser(
             "profile-posts",
-            description="Get latests posts of a list of profiles. A list of usernames or user IDs can be passed (it takes one more request per username, since we need to figure out the user ID). Only the URLs of links, pictures and videos are exported (separated by \\n)",
+            help="Collect latest profile posts",
+            description="Get latest posts from a list of profiles. Only URLs of links, pictures and videos are exported (separated by \n)",
         )
         parser_profile_posts.add_argument("--quiet", "-q", action="store_true", help="Do not show a progress bar")
         parser_profile_posts.add_argument(
-            "--max-posts-per-user", "-m", type=int, default=MAX_POSTS_PER_USER, help="Maximum posts to get per user"
+            "--max-posts-per-user", "-m", type=int, default=max_posts_per_user, help="Maximum posts to get per user"
         )
-        parser_profile_posts.add_argument(
-            "--max-posts", "-M", type=int, default=MAX_POSTS, help="Maximum posts to get (total)"
-        )
+        parser_profile_posts.add_argument("--max-posts", "-M", type=int, default=max_posts, help="Maximum posts to get (total)")
         parser_profile_posts.add_argument("username_or_id", nargs="+")
         parser_profile_posts.add_argument("output_csv", type=Path)
 
         parser_archive = network_subparser.add_parser(
             "archive",
-            description="Get all posts and media metadata and download media for a list of profiles and save into a ZIP file. A list of usernames or user IDs can be passed.",
+            help="Create a collection archive",
+            description="Get all posts and media metadata for profiles and save them into a ZIP file.",
         )
         parser_archive.add_argument("--quiet", "-q", action="store_true", help="Do not show a progress bar")
         parser_archive.add_argument(
-            "--max-posts-per-user", "-m", type=int, default=MAX_POSTS_PER_USER, help="Maximum posts to get per user"
+            "--max-posts-per-user", "-m", type=int, default=max_posts_per_user, help="Maximum posts to get per user"
         )
-        parser_archive.add_argument(
-            "--max-posts", "-M", type=int, default=MAX_POSTS, help="Maximum posts to get (total)"
-        )
+        parser_archive.add_argument("--max-posts", "-M", type=int, default=max_posts, help="Maximum posts to get (total)")
         parser_archive.add_argument("username_or_id", nargs="+")
         parser_archive.add_argument("output_zip", type=Path)
 
+        parser_export = network_subparser.add_parser(
+            "export", help="Export collected post metadata", description="Export collected post metadata as Markdown and HTML."
+        )
+        parser_export.add_argument("input_csv", type=Path, help="Collected post CSV file")
+        parser_export.add_argument(
+            "output", type=Path, help="Output file, or output name without an extension when exporting both formats"
+        )
+        parser_export.add_argument("-u", "--username", required=True, help="{} profile username".format(network.title()))
+        parser_export.add_argument(
+            "-c", "--collected-at", required=True, help="Human-readable timestamp describing when the data was collected"
+        )
+        parser_export.add_argument(
+            "--transcriptions-dir", type=Path, help="Directory containing post_<id>_*.vtt transcription files"
+        )
+        parser_export.add_argument(
+            "-f", "--format", dest="output_format", choices=("markdown", "html", "both"), default="both", help="Output format (default: both)"
+        )
+
     parser_instagram_post = network_subparsers["instagram"].add_parser(
-        "post",
-        description="Get posts from a list of post codes (the code is found in the URL: <https://www.instagram.com/p/CODE/>).",
+        "post", help="Collect posts by code", description="Get posts from a list of post codes."
     )
     parser_instagram_post.add_argument("--quiet", "-q", action="store_true", help="Do not show a progress bar")
-    parser_instagram_post.add_argument(
-        "--max-posts", "-M", type=int, default=MAX_POSTS, help="Maximum posts to get (total)"
-    )
+    parser_instagram_post.add_argument("--max-posts", "-M", type=int, default=max_posts, help="Maximum posts to get (total)")
     parser_instagram_post.add_argument("post_code", nargs="+")
     parser_instagram_post.add_argument("output_csv", type=Path)
+    return parser
 
-    parser_instagram_export = network_subparsers["instagram"].add_parser(
-        "export",
-        description="Export collected Instagram post metadata as Markdown and HTML.",
-    )
-    parser_instagram_export.add_argument("input_csv", type=Path, help="Collected post CSV file")
-    parser_instagram_export.add_argument(
-        "output",
-        type=Path,
-        help="Output file, or output name without an extension when exporting both formats",
-    )
-    parser_instagram_export.add_argument("-u", "--username", required=True, help="Instagram profile username")
-    parser_instagram_export.add_argument(
-        "-c",
-        "--collected-at",
-        required=True,
-        help="Human-readable timestamp describing when the data was collected",
-    )
-    parser_instagram_export.add_argument(
-        "-t",
-        "--transcriptions-dir",
-        type=Path,
-        help="Directory containing post_<id>_*.vtt transcription files",
-    )
-    parser_instagram_export.add_argument(
-        "-f",
-        "--format",
-        dest="output_format",
-        choices=("markdown", "html", "both"),
-        default="both",
-        help="Output format (default: both)",
-    )
 
-    args = parser.parse_args()
-
+def main(argv: Optional[List[str]] = None):
+    class_map = {"instagram": Instagram, "threads": Threads}
+    args = _create_parser().parse_args(argv)
     if args.action == "profile":
-        collect_profile(
-            client_class=class_map[args.network],
-            usernames_or_ids=args.username_or_id,
-            output_csv=args.output_csv,
-            min_wait=args.min_wait,
-            max_wait=args.max_wait,
-            quiet=args.quiet,
+        return collect_profile(
+            client_class=class_map[args.network], usernames_or_ids=args.username_or_id, output_csv=args.output_csv,
+            min_wait=args.min_wait, max_wait=args.max_wait, quiet=args.quiet,
         )
-
-    elif args.action == "profile-posts":
-        collect_profile_posts(
-            client_class=class_map[args.network],
-            usernames_or_ids=args.username_or_id,
-            output_csv=args.output_csv,
-            min_wait=args.min_wait,
-            max_wait=args.max_wait,
-            max_posts_per_user=args.max_posts_per_user,
-            max_posts=args.max_posts,
-            quiet=args.quiet,
+    if args.action == "profile-posts":
+        return collect_profile_posts(
+            client_class=class_map[args.network], usernames_or_ids=args.username_or_id, output_csv=args.output_csv,
+            min_wait=args.min_wait, max_wait=args.max_wait, max_posts_per_user=args.max_posts_per_user,
+            max_posts=args.max_posts, quiet=args.quiet,
         )
-
-    elif args.action == "archive":
-        archive(
-            client_class=class_map[args.network],
-            usernames_or_ids=args.username_or_id,
-            output_zip=args.output_zip,
-            min_wait=args.min_wait,
-            max_wait=args.max_wait,
-            max_posts_per_user=args.max_posts_per_user,
-            max_posts=args.max_posts,
-            quiet=args.quiet,
+    if args.action == "archive":
+        return archive(
+            client_class=class_map[args.network], usernames_or_ids=args.username_or_id, output_zip=args.output_zip,
+            min_wait=args.min_wait, max_wait=args.max_wait, max_posts_per_user=args.max_posts_per_user,
+            max_posts=args.max_posts, quiet=args.quiet,
         )
-
-    elif (args.network, args.action) == ("instagram", "post"):
-        instagram_post(
-            post_codes=args.post_code,
-            output_csv=args.output_csv,
-            min_wait=args.min_wait,
-            max_wait=args.max_wait,
-            max_posts=args.max_posts,
-            quiet=args.quiet,
+    if (args.network, args.action) == ("instagram", "post"):
+        return instagram_post(
+            post_codes=args.post_code, output_csv=args.output_csv, min_wait=args.min_wait, max_wait=args.max_wait,
+            max_posts=args.max_posts, quiet=args.quiet,
         )
-
-    elif (args.network, args.action) == ("instagram", "export"):
-        written = export_instagram_catalog(
-            input_csv=args.input_csv,
-            output=args.output,
-            profile=args.profile,
-            collected_at=args.collected_at,
-            transcriptions_dir=args.transcriptions_dir,
-            output_format=args.output_format,
+    exporters = {"instagram": export_instagram_catalog, "threads": export_threads_catalog}
+    if args.action == "export":
+        return exporters[args.network](
+            input_csv=args.input_csv, output=args.output, profile=args.username, collected_at=args.collected_at,
+            transcriptions_dir=args.transcriptions_dir, output_format=args.output_format,
         )
-        for path in written:
-            print("Generated: {}".format(path))
-
-    # TODO: implement threads-post
+    raise RuntimeError("Unsupported outgram command: {} {}".format(args.network, args.action))
 
 
 if __name__ == "__main__":
