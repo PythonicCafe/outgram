@@ -49,71 +49,68 @@ from pprint import pprint
 from outgram import Threads
 
 client = Threads()
-username = "wsj"
-simple_profile = client.simple_profile(username)  # Used to get user ID
-user_id = simple_profile.id
-profile = client.profile_from_user_id(user_id)
-# or: profile = client.profile_from_username(username)
+username = "lulaoficial"
+profile = client.profile_from_username(username)
 pprint(profile)
 
 # Result:
-#ThreadsProfile(id=63106634874,
-#               username='wsj',
-#               full_name='The Wall Street Journal',
-#               biography='Since 1889 🗞️',
-#               is_verified=True,
-#               followers=1280983,
-#               pictures=[Picture(width=150, height=150, content_type=None),
-#                         Picture(width=320, height=320, content_type=None),
-#                         Picture(width=640, height=640, content_type=None)],
-#               is_private=False,
-#               bio_links=[Link(url='http://wsj.com/',
-#                               title=None,
-#                               is_verified=False,
-#                               id=17987258489277581,
-#                               display_text=None)],
-#               is_threads_only_user=False)
+# ThreadsProfile(id=63269934954,
+#                username='lulaoficial',
+#                full_name='Luiz Inácio Lula da Silva',
+#                biography='Presidente do Brasil',
+#                is_verified=True,
+#                followers=3056469,
+#                pictures=[Picture(width=150, height=150, content_type=None),
+#                          Picture(width=320, height=320, content_type=None),
+#                          Picture(width=640, height=640, content_type=None)],
+#                is_private=False,
+#                bio_links=[Link(url='https://lula.com.br',
+#                                title=None,
+#                                is_verified=False,
+#                                id=17974322726518654,
+#                                display_text=None)],
+#                is_threads_only_user=None)
 ```
 
 
 ### Threads Profile Posts
 
 ```python
-# NOTES:
-# 1- Run the last example before running the code below
-# 2- Since the client is not logged-in, only the last 25 posts are returned
+# Since the client is not logged in, public availability can vary.
 
-for index, post in enumerate(client.profile_posts(user_id), start=1):
+for index, post in enumerate(client.profile_posts(username), start=1):
     print(f"Got post {index:02d}:")
     pprint(post)
 
 # Result:
-#Got post 01:
-#ThreadsPost(id='3671530607241963057_63106634874',
-#            user_id=63106634874,
-#            username='wsj',
-#            is_verified=True,
-#            text='A crew in the Red Sea was forced to abandon ship after it '
-#                 'was hit by Yemen’s Houthi rebels on Sunday, the first attack '
-#                 'of its kind since President Trump announced a truce in May.',
-#            links=[],
-#            published_at=datetime.datetime(2025, 7, 7, 12, 3, 4, tzinfo=datetime.timezone.utc),
-#            likes=3,
-#            replies=1,
-#            reposts=0,
-#            quotes=0,
-#            is_private=False,
-#            media=[],
-#            reply_control='everyone',
-#            media_type=19,
-#            accessibility_caption=None,
-#            is_paid_partnership=None,
-#            like_and_view_counts_disabled=False,
-#            has_audio=None,
-#            original_width=612,
-#            original_height=612,
-#            code='DLz5aJ6oaYx',
-#            reshares=None)
+# Got post 01:
+# ThreadsPost(id='3686828385308525791_63269934954',
+#             user_id=63269934954,
+#             username='lulaoficial',
+#             is_verified=True,
+#             text='Minhas amigas e meus amigos. É com grande orgulho e imensa alegria que informo: O Brasil está fora '
+#                  'do mapa da fome, mais uma vez.\n\nO anúncio foi feito hoje (28) pela FAO/ONU. Isso significa que '
+#                  'reduzimos a insegurança alimentar grave e a subnutrição para menos de 2,5% da população. Uma '
+#                  'conquista histórica que mostra que com políticas públicas sérias e compromisso com o povo, é possível '
+#                  'combater a fome e construir um país mais justo e solidário.',
+#             links=[],
+#             published_at=datetime.datetime(2025, 7, 28, 17, 36, 54, tzinfo=datetime.timezone.utc),
+#             likes=16519,
+#             replies=2172,
+#             reposts=808,
+#             quotes=97,
+#             is_private=False,
+#             media=[Picture(width=1080, height=1350, content_type=None)],
+#             reply_control='everyone',
+#             media_type=1,
+#             accessibility_caption=None,
+#             is_paid_partnership=None,
+#             like_and_view_counts_disabled=False,
+#             has_audio=None,
+#             original_width=1080,
+#             original_height=1350,
+#             code='DMqPuH-JETf',
+#             reshares=396)
 # [...]
 ```
 
@@ -136,16 +133,15 @@ pprint(profile)
 #                  full_name='CRIO',
 #                  picture=Picture(width=None, height=None, content_type=None),
 #                  is_verified=False,
-#                  followers=20392,
-#                  followees=3168,
-#                  posts=145,
+#                  followers=27301,
+#                  followees=3371,
+#                  posts=209,
 #                  is_private=False,
-#                  biography='Melhor forma de começar o dia.\n'
-#                            'Entregamos qualidade para todo o Brasil!\n'
-#                            'Conheça nossa loja em SP\n'
-#                            'R Cubatão 641 (2ª-Sáb) e Alameda Santos 1470 '
-#                            '(2ª-6ª)',
-#                  bio_links=[Link(url='http://delivery.crio.cafe',
+#                  biography='Cafés especiais, pão de queijo e doces autorais.\n'
+#                            'Produzidos com cuidado em São Paulo.\n'
+#                            'Lojas em SP + entrega para todo o Brasil.\n'
+#                            '⬇️ Peça pelo site',
+#                  bio_links=[Link(url='http://crio.cafe',
 #                                  title='Enviamos para todo Brasil',
 #                                  is_verified=None,
 #                                  id=None,
@@ -169,8 +165,8 @@ for index, post in enumerate(client.profile_posts(username), start=1):
 # Got post 01 from @crio.cafe (2024-01-19 18:54:50+00:00): Você ama queijo e pão de queijo com...
 # Got post 02 from @crio.cafe (2023-12-11 15:00:25+00:00): Delicado, Equilibrado, Intenso, Aze...
 # [...]
-# Got post 35 from @crio.cafe (2023-12-22 14:02:57+00:00): DELICADO: café suave, para beber de...
-# Got post 36 from @crio.cafe (2023-12-21 15:55:01+00:00): DOCE DE LEITE: sabor de fundo de pa...
+# Got post 35 from @luiz.mastropietro (2026-02-24 12:30:43+00:00): Café com água de Coco é bom??  Aqui...
+# Got post 36 from @crio.cafe (2026-02-20 13:01:05+00:00): Um café diferente por dia!!  Aqui n...
 ```
 
 > Note that not always `post.author.username` will be the same as the username passed to `.profile_posts`, since the
