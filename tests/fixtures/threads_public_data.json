@@ -1,0 +1,24 @@
+{
+  "profile": {
+    "data": {
+      "user": {
+        "id": "101",
+        "pk": "101",
+        "username": "example.person",
+        "full_name": "Example Person",
+        "biography": "Sanitized biography",
+        "is_verified": true,
+        "follower_count": 12,
+        "profile_pic_url": "https://cdn.example.invalid/profile-small.jpg",
+        "hd_profile_pic_versions": [{"url": "https://cdn.example.invalid/profile-large.jpg", "width": 640, "height": 640}],
+        "text_post_app_is_private": false,
+        "bio_links": [{"url": "https://example.invalid/", "link_id": "55", "is_verified": false}]
+      }
+    }
+  },
+  "minimal_profile": {"data": {"user": {"id": "102", "username": "minimal", "full_name": "", "biography": "", "follower_count": 0}}},
+  "text_post": {"id": "text-1", "user": {"pk": "101", "username": "example.person", "is_verified": true}, "taken_at": 1, "like_count": 2, "text_post_app_info": {"text_fragments": {"fragments": [{"plaintext": "Hello ", "fragment_type": "text"}, {"plaintext": "site", "fragment_type": "link", "link_fragment": {"uri": "https://example.invalid/", "display_text": "site"}}]}, "direct_reply_count": 3}},
+  "photo_post": {"id": "photo-1", "user": {"pk": "101", "username": "example.person", "is_verified": false}, "taken_at": 2, "like_count": 0, "image_versions2": {"candidates": [{"url": "https://cdn.example.invalid/small.jpg", "width": 100, "height": 100}, {"url": "https://cdn.example.invalid/large.jpg", "width": 800, "height": 600}]}},
+  "video_post": {"id": "video-1", "user": {"pk": "101", "username": "example.person", "is_verified": false}, "taken_at": 3, "like_count": 0, "image_versions2": {"candidates": [{"url": "https://cdn.example.invalid/thumb.jpg", "width": 100, "height": 100}]}, "video_versions": [{"url": "https://cdn.example.invalid/video.mp4", "type": 2}]},
+  "carousel_post": {"id": "carousel-1", "user": {"pk": "101", "username": "example.person", "is_verified": false}, "taken_at": 4, "like_count": 0, "carousel_media": [{"image_versions2": {"candidates": [{"url": "https://cdn.example.invalid/carousel.jpg", "width": 200, "height": 100}]}}, {"video_versions": [{"url": "https://cdn.example.invalid/carousel.mp4", "type": 2}]}]}
+}
