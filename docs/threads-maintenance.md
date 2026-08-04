@@ -19,6 +19,8 @@ Use a disposable, logged-out browser profile. Capture one public profile, load o
 
 Public protocol metadata is safe and useful to preserve in a sanitized summary: usernames, numeric public IDs, operation names, `doc_id`s, endpoints, parameter/header names, variable types and structural response paths. Do not confuse those public identifiers with browser session values.
 
+Inspect the complete HAR locally when diagnosing a failure. Comparing its HTML bootstrap, cookies, request form values and headers with a newly created `requests.Session` is how to derive the public protocol. Do not copy captured session values into source code or replay them from the HAR: implement extraction of equivalent values from each new public bootstrap instead.
+
 Create a local structural summary instead:
 
 ```shell

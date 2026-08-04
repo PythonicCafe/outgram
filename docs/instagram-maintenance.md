@@ -49,7 +49,7 @@ Use a disposable browser profile and a normal logged-out session.
 3. Open one public photo, one Reel/video and one carousel in their individual routes.
 4. Export a HAR with request payloads and response bodies if the browser supports it.
 5. Capture a separate HAR for each failure instead of recording unrelated browsing activity.
-6. Treat the HAR and its transient session material as sensitive. It can contain cookies, CSRF/LSD values, device identifiers, temporary CDN URLs and browsing metadata. Do not commit the HAR, attach it to issues or paste session values into logs. Public protocol metadata such as usernames, numeric public IDs, operation names, `doc_id`s, endpoints, parameter/header names and response paths may be retained in a sanitized summary.
+6. Inspect the complete HAR locally when diagnosing the browser protocol, including its HTML bootstrap, request form values, headers and session material. It can contain cookies, CSRF/LSD values, device identifiers, temporary CDN URLs and browsing metadata. Do not commit the HAR, attach it to issues, paste session values into logs, hard-code them or replay them from the HAR. Instead, derive equivalent values from each new public client session. Public protocol metadata such as usernames, numeric public IDs, operation names, `doc_id`s, endpoints, parameter/header names and response paths may be retained in a sanitized summary.
 
 ### Lightpanda CDP capture
 

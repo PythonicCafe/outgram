@@ -5,7 +5,8 @@ The output deliberately excludes request and response bodies, cookies,
 authorization data, CSRF/LSD values, session/device identifiers and media URLs.
 The optional public-identifier output includes only usernames and numeric public
 IDs. It is intended to identify persisted-query document IDs and request shapes
-that outgram must support.
+that outgram must support. Inspect the HAR locally when its complete bootstrap
+or request envelope is needed; never persist captured session values.
 """
 
 import argparse
