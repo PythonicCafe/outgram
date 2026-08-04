@@ -12,13 +12,13 @@
 - Build and validate distributions: `make package-build`
 - Open a development shell: `make bash`
 
-`make test` includes doctests and coverage. Instagram and Threads live tests are opt-in; do not enable them for routine local or CI runs. Run Threads smoke tests explicitly with `OUTGRAM_RUN_THREADS_SMOKE=1 pytest -m threads_smoke tests/test_threads.py`. The Docker Compose development image installs the `img` and `dev` extras; rebuild it with `make build` after dependency or packaging changes. With `ENV_TYPE=development`, commands that run in the main container execute directly; otherwise they use Docker Compose.
+`make test` includes doctests and coverage. Instagram and Threads live tests are opt-in; do not enable them for routine local or CI runs. Run Threads smoke tests explicitly with `OUTGRAM_RUN_THREADS_SMOKE=1 pytest -m threads_smoke tests/test_threads.py`. The Docker Compose development image installs the `img` and `dev` dependency groups; rebuild it with `make build` after dependency or packaging changes. With `ENV_TYPE=development`, commands that run in the main container execute directly; otherwise they use Docker Compose.
 
 ## Packaging
 
 - `pyproject.toml` is the packaging source of truth; do not reintroduce `setup.py` or `setup.cfg`.
 - Keep the declared Python requirement at 3.7 or newer, including build-system and runtime dependency constraints.
-- Put optional runtime dependencies in an appropriate extra and development-only tools in the `dev` extra. Validate distributable artifacts with `make package-build`.
+- Put optional runtime dependencies in an appropriate extra. Put Docker build and development-only dependencies in named `[dependency-groups]`; keep the Dockerfile aligned through `pip install --group`. Validate distributable artifacts with `make package-build`.
 
 ## Scope and compatibility
 

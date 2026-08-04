@@ -42,6 +42,12 @@ Homepage = "https://github.com/PythonicCafe/outgram/"
 img = [
     "pillow",
 ]
+
+[dependency-groups]
+img = [
+    "requests",
+    "pillow",
+]
 dev = [
     "autoflake",
     "black",
