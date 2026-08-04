@@ -2,6 +2,7 @@ import argparse
 import csv
 import datetime
 import io
+import sys
 from pathlib import Path
 from typing import Any, List, Optional, Tuple, Union
 from zipfile import ZipFile, ZipInfo
@@ -32,15 +33,15 @@ class ProgressBar:
         if total is None:
             total = self.total
         if not done:  # The `current` item was started but not done yet
-            percent = 100 * (current - 1 if current != 0 else 0) / total
+            percent = 0 if not total else 100 * (current - 1 if current != 0 else 0) / total
         else:
-            percent = (100 * current) / total
+            percent = 100 if not total else (100 * current) / total
         title_str = title or self.title or ""
         suffix_str = suffix if suffix is not None else ""
         line = f"\r{title_str}{current:03d}/{total:03d} ({percent:3.2f}%){suffix_str}"
         if self.last_line_length is not None and self.last_line_length > len(line):
-            print("\r" + " " * self.last_line_length, end="")
-        print(line, flush=True, end=end)
+            print("\r" + " " * self.last_line_length, end="", file=sys.stderr)
+        print(line, flush=True, end=end, file=sys.stderr)
         self.last_line_length = len(line)
 
 
@@ -69,7 +70,7 @@ def collect_profile(
 ):
     client = client_class(min_wait=min_wait, max_wait=max_wait)
     output_csv.parent.mkdir(parents=True, exist_ok=True)
-    with output_csv.open(mode="w") as fobj:
+    with output_csv.open(mode="w", encoding="utf-8", newline="") as fobj:
         writer = None
         ProgressClass = ProgressBar if not quiet else QuietProgressBar
         progress = ProgressClass(title=f"{client_class.__name__} Profile ", total=len(usernames_or_ids))
@@ -82,7 +83,8 @@ def collect_profile(
                 writer.writeheader()
             writer.writerow(row)
             progress.update(index, done=True)
-        progress.update(index, done=True, end="\n")
+        progress.update(index if usernames_or_ids else 0, done=True, end="\n")
+    return output_csv
 
 
 def collect_profile_posts(
@@ -97,7 +99,7 @@ def collect_profile_posts(
 ):
     client = client_class(min_wait=min_wait, max_wait=max_wait)
     output_csv.parent.mkdir(parents=True, exist_ok=True)
-    with output_csv.open(mode="w") as fobj:
+    with output_csv.open(mode="w", encoding="utf-8", newline="") as fobj:
         writer = None
         ProgressClass = ProgressBar if not quiet else QuietProgressBar
         progress = ProgressClass(title=f"{client_class.__name__} Profile ", total=len(usernames_or_ids))
@@ -121,7 +123,8 @@ def collect_profile_posts(
             progress.update(index, done=True)
             if finished:
                 break
-        progress.update(index, done=True, end="\n")
+        progress.update(index if usernames_or_ids else 0, done=True, end="\n")
+    return output_csv
 
 
 def _archive_member(
@@ -150,7 +153,7 @@ def archive(
     ProgressClass = ProgressBar if not quiet else QuietProgressBar
     progress = ProgressClass(title=f"{client_class.__name__} Profile ", total=len(usernames_or_ids))
     with io.TextIOWrapper(
-        _archive_member(zf, "profile.csv", archive_date_time), encoding="utf-8"
+        _archive_member(zf, "profile.csv", archive_date_time), encoding="utf-8", newline=""
     ) as fobj:
         writer = None
         for index, username_or_id in enumerate(usernames_or_ids, start=1):
@@ -163,30 +166,33 @@ def archive(
                 writer.writeheader()
             writer.writerow(row)
             progress.update(index, done=True)
-        progress.update(index, done=True, end="\n")
+        progress.update(index if usernames_or_ids else 0, done=True, end="\n")
 
     progress = ProgressClass(title=f"{client_class.__name__} Profile media (download) ", total=len(profiles))
     progress.update(0, done=True)
-    for index, media in enumerate(client.download_many(profiles), start=1):
-        progress.update(index, done=True)
-    progress.update(index, done=True, end="\n")
+    if profiles:
+        for index, media in enumerate(client.download_many(profiles), start=1):
+            progress.update(index, done=True)
+    progress.update(index if profiles else 0, done=True, end="\n")
 
     progress = ProgressClass(title=f"{client_class.__name__} Profile media (save) ", total=len(profiles))
     for index, profile in enumerate(profiles, start=1):
         progress.update(index, done=False)
-        extension = profile.picture.content_type.split("/")[-1].lower()
-        extension = {"jpeg": "jpg"}.get(extension, extension)
-        with _archive_member(
-            zf, f"media/profile_{profile.id}.{extension}", archive_date_time
-        ) as fobj:
-            fobj.write(profile.picture.content)
+        picture = getattr(profile, "picture", None)
+        if picture is not None and picture.content is not None and picture.content_type:
+            extension = picture.content_type.split("/")[-1].lower()
+            extension = {"jpeg": "jpg"}.get(extension, extension)
+            with _archive_member(
+                zf, f"media/profile_{profile.id}.{extension}", archive_date_time
+            ) as fobj:
+                fobj.write(picture.content)
         progress.update(index, done=True)
-    progress.update(index, done=True, end="\n")
+    progress.update(index if profiles else 0, done=True, end="\n")
 
     posts = []
     total_post_media = 0
     with io.TextIOWrapper(
-        _archive_member(zf, "post.csv", archive_date_time), encoding="utf-8"
+        _archive_member(zf, "post.csv", archive_date_time), encoding="utf-8", newline=""
     ) as fobj:
         writer = None
         progress = ProgressClass(title=f"{client_class.__name__} Profile posts ", total=len(profiles))
@@ -212,13 +218,14 @@ def archive(
             progress.update(index, done=True)
             if finished:
                 break
-        progress.update(index, done=True, end="\n")
+        progress.update(index if profiles else 0, done=True, end="\n")
 
     progress = ProgressClass(title=f"{client_class.__name__} Profile posts media (download) ", total=total_post_media)
     progress.update(0, done=True)
-    for index, media in enumerate(client.download_many(posts), start=1):
-        progress.update(index, done=True)
-    progress.update(index, done=True, end="\n")
+    if posts:
+        for index, media in enumerate(client.download_many(posts), start=1):
+            progress.update(index, done=True)
+    progress.update(index if total_post_media else 0, done=True, end="\n")
 
     progress = ProgressClass(title=f"{client_class.__name__} Profile posts media (save) ", total=total_post_media)
     counter = 0
@@ -238,6 +245,7 @@ def archive(
     progress.update(counter, done=True, end="\n")
 
     zf.close()
+    return output_zip
 
 
 def instagram_post(
@@ -250,7 +258,7 @@ def instagram_post(
 ):
     client = Instagram(min_wait=min_wait, max_wait=max_wait)
     output_csv.parent.mkdir(parents=True, exist_ok=True)
-    with output_csv.open(mode="w") as fobj:
+    with output_csv.open(mode="w", encoding="utf-8", newline="") as fobj:
         writer = None
         ProgressClass = ProgressBar if not quiet else QuietProgressBar
         progress = ProgressClass(title="Post ", total=len(post_codes))
@@ -265,90 +273,56 @@ def instagram_post(
             progress.update(index, done=True)
             if max_posts is not None and index == max_posts:
                 break
-        progress.update(index, done=True, end="\n")
+        progress.update(index if post_codes else 0, done=True, end="\n")
+    return output_csv
 
 
 def _create_parser():
     max_posts = 96
     max_posts_per_user = 48
     parser = argparse.ArgumentParser(prog="outgram")
-    parser.add_argument("--version", action="version", version=f"%(prog)s {'.'.join(map(str, __version__))}")
-    parser.add_argument(
-        "--min-wait", "-t", type=float, default=0.5, help="Minimum time (in seconds) to wait between requests"
-    )
-    parser.add_argument(
-        "--max-wait", "-T", type=float, default=2.0, help="Maximum time (in seconds) to wait between requests"
-    )
+    parser.add_argument("--version", action="version", version="%(prog)s {}".format(".".join(map(str, __version__))))
     subparsers = parser.add_subparsers(dest="network", metavar="NETWORK", required=True, help="Social network")
+    pacing_parser = argparse.ArgumentParser(add_help=False)
+    pacing_parser.add_argument("-t", "--min-wait", metavar="MIN_SECONDS", type=float, default=0.5, help="Minimum wait between requests")
+    pacing_parser.add_argument("-T", "--max-wait", metavar="MAX_SECONDS", type=float, default=2.0, help="Maximum wait between requests")
+    collection_parser = argparse.ArgumentParser(add_help=False)
+    collection_parser.add_argument("-q", "--quiet", action="store_true", help="Do not show progress")
 
     network_subparsers = {}
     for network in ("instagram", "threads"):
         network_parser = subparsers.add_parser(network, help="Collect {} public data".format(network.title()))
-        network_subparsers[network] = network_parser.add_subparsers(
-            dest="action", metavar="ACTION", required=True, help="Collection action"
-        )
+        network_subparsers[network] = network_parser.add_subparsers(dest="action", metavar="ACTION", required=True, help="Collection action")
 
-    for network, network_subparser in network_subparsers.items():
-        parser_profile = network_subparser.add_parser(
-            "profile",
-            help="Collect profile metadata",
-            description="Get information regarding one or more profiles. Only the biggest picture URL is exported. Only the URLs of bio_links are exported (separated by \n)",
-        )
-        parser_profile.add_argument("--quiet", "-q", action="store_true", help="Do not show a progress bar")
-        parser_profile.add_argument("username_or_id", nargs="+")
-        parser_profile.add_argument("output_csv", type=Path)
+    for network_subparser in network_subparsers.values():
+        profile = network_subparser.add_parser("profile", parents=[pacing_parser, collection_parser], help="Collect profile metadata")
+        profile.add_argument("username_or_id", metavar="USERNAME_OR_ID", nargs="+")
+        profile.add_argument("output_csv", metavar="OUTPUT_CSV", type=Path)
 
-        parser_profile_posts = network_subparser.add_parser(
-            "profile-posts",
-            help="Collect latest profile posts",
-            description="Get latest posts from a list of profiles. Only URLs of links, pictures and videos are exported (separated by \n)",
-        )
-        parser_profile_posts.add_argument("--quiet", "-q", action="store_true", help="Do not show a progress bar")
-        parser_profile_posts.add_argument(
-            "--max-posts-per-user", "-m", type=int, default=max_posts_per_user, help="Maximum posts to get per user"
-        )
-        parser_profile_posts.add_argument("--max-posts", "-M", type=int, default=max_posts, help="Maximum posts to get (total)")
-        parser_profile_posts.add_argument("username_or_id", nargs="+")
-        parser_profile_posts.add_argument("output_csv", type=Path)
+        profile_posts = network_subparser.add_parser("profile-posts", parents=[pacing_parser, collection_parser], help="Collect latest profile posts")
+        profile_posts.add_argument("-m", "--max-posts-per-user", metavar="LIMIT", type=int, default=max_posts_per_user, help="Maximum posts per profile")
+        profile_posts.add_argument("-M", "--max-posts", metavar="LIMIT", type=int, default=max_posts, help="Maximum posts in total")
+        profile_posts.add_argument("username_or_id", metavar="USERNAME_OR_ID", nargs="+")
+        profile_posts.add_argument("output_csv", metavar="OUTPUT_CSV", type=Path)
 
-        parser_archive = network_subparser.add_parser(
-            "archive",
-            help="Create a collection archive",
-            description="Get all posts and media metadata for profiles and save them into a ZIP file.",
-        )
-        parser_archive.add_argument("--quiet", "-q", action="store_true", help="Do not show a progress bar")
-        parser_archive.add_argument(
-            "--max-posts-per-user", "-m", type=int, default=max_posts_per_user, help="Maximum posts to get per user"
-        )
-        parser_archive.add_argument("--max-posts", "-M", type=int, default=max_posts, help="Maximum posts to get (total)")
-        parser_archive.add_argument("username_or_id", nargs="+")
-        parser_archive.add_argument("output_zip", type=Path)
+        archive_parser = network_subparser.add_parser("archive", parents=[pacing_parser, collection_parser], help="Create a collection archive")
+        archive_parser.add_argument("-m", "--max-posts-per-user", metavar="LIMIT", type=int, default=max_posts_per_user, help="Maximum posts per profile")
+        archive_parser.add_argument("-M", "--max-posts", metavar="LIMIT", type=int, default=max_posts, help="Maximum posts in total")
+        archive_parser.add_argument("username_or_id", metavar="USERNAME_OR_ID", nargs="+")
+        archive_parser.add_argument("output_zip", metavar="OUTPUT_ZIP", type=Path)
 
-        parser_export = network_subparser.add_parser(
-            "export", help="Export collected post metadata", description="Export collected post metadata as Markdown and HTML."
-        )
-        parser_export.add_argument("input_csv", type=Path, help="Collected post CSV file")
-        parser_export.add_argument(
-            "output", type=Path, help="Output file, or output name without an extension when exporting both formats"
-        )
-        parser_export.add_argument("-u", "--username", required=True, help="{} profile username".format(network.title()))
-        parser_export.add_argument(
-            "-c", "--collected-at", required=True, help="Human-readable timestamp describing when the data was collected"
-        )
-        parser_export.add_argument(
-            "--transcriptions-dir", type=Path, help="Directory containing post_<id>_*.vtt transcription files"
-        )
-        parser_export.add_argument(
-            "-f", "--format", dest="output_format", choices=("markdown", "html", "both"), default="both", help="Output format (default: both)"
-        )
+        export_parser = network_subparser.add_parser("export", help="Export collected post metadata")
+        export_parser.add_argument("input_csv", metavar="INPUT_CSV", type=Path, help="Collected post CSV file")
+        export_parser.add_argument("username", metavar="USERNAME", help="Collected profile username")
+        export_parser.add_argument("collected_at", metavar="COLLECTED_AT", help="Human-readable collection timestamp")
+        export_parser.add_argument("output", metavar="OUTPUT", type=Path, help="Output path or prefix")
+        export_parser.add_argument("-t", "--transcriptions-dir", metavar="DIRECTORY", type=Path, help="Directory containing external WebVTT transcription files")
+        export_parser.add_argument("-f", "--format", dest="output_format", metavar="FORMAT", choices=("markdown", "md", "html"), default=None, help="Output format: markdown, md or html; default: Markdown and HTML")
 
-    parser_instagram_post = network_subparsers["instagram"].add_parser(
-        "post", help="Collect posts by code", description="Get posts from a list of post codes."
-    )
-    parser_instagram_post.add_argument("--quiet", "-q", action="store_true", help="Do not show a progress bar")
-    parser_instagram_post.add_argument("--max-posts", "-M", type=int, default=max_posts, help="Maximum posts to get (total)")
-    parser_instagram_post.add_argument("post_code", nargs="+")
-    parser_instagram_post.add_argument("output_csv", type=Path)
+    post = network_subparsers["instagram"].add_parser("post", parents=[pacing_parser, collection_parser], help="Collect posts by code")
+    post.add_argument("-M", "--max-posts", metavar="LIMIT", type=int, default=max_posts, help="Maximum posts in total")
+    post.add_argument("post_code", metavar="POST_CODE", nargs="+")
+    post.add_argument("output_csv", metavar="OUTPUT_CSV", type=Path)
     return parser
 
 
