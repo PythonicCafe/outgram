@@ -210,7 +210,7 @@ When schema changes, add the smallest sanitized fragment that reproduces the new
 Live smoke tests use known public profiles and are intentionally disabled by default:
 
 ```shell
-OUTGRAM_RUN_SMOKE=1 pytest -m instagram_smoke tests/test_instagram_smoke.py
+OUTGRAM_RUN_SMOKE=1 pytest -m instagram_smoke
 ```
 
 They validate actual content, not only absence of exceptions:

@@ -441,20 +441,34 @@ outgram instagram archive \
 ```
 
 
-### Instagram Catalog Export
+### Catalog Export
 
-Export a collected Instagram post CSV as both Markdown and HTML. The output argument is used as a filename prefix when both formats are selected; this example creates `docs/instagram-catalog.md` and `docs/instagram-catalog.html`.
+Export a collected Instagram or Threads post CSV as Markdown and HTML. The required `USERNAME` identifies the profile whose collection produced the CSV; each post keeps its own author when shared posts have a different author. When `--format` is omitted, `OUTPUT` is a prefix and the command creates both `.md` and `.html` files.
 
 ```shell
 outgram instagram export \
-    --profile crio.cafe \
-    --collected-at "2026-07-31 09:16 UTC" \
-    --transcriptions-dir data/transcription \
     data/instagram-profile-posts.csv \
+    crio.cafe \
+    "2026-07-31 09:16 UTC" \
     docs/instagram-catalog
+
+outgram threads export \
+    data/threads-profile-posts.csv \
+    wsj \
+    "2026-07-31 09:16 UTC" \
+    docs/threads-catalog
 ```
 
-Use `--format markdown` or `--format html` to generate a single format. In that case the output path is used unchanged.
+Use `--format markdown` (or `md`) or `--format html` to generate one format; in that case `OUTPUT` is used unchanged. `--transcriptions-dir DIRECTORY` is optional and only reads existing external WebVTT (`.vtt`) files named `post_<id>_*.vtt`; outgram does not download, generate or transcribe audio or video.
+
+### Public collection smoke tests
+
+Network smoke tests are opt-in and validate public collection, media download and archive controllers directly. They do not test `argparse` parsing:
+
+```shell
+OUTGRAM_RUN_THREADS_SMOKE=1 pytest -m threads_smoke
+OUTGRAM_RUN_SMOKE=1 pytest -m instagram_smoke
+```
 
 
 ## Data Completion

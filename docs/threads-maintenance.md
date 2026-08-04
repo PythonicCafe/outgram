@@ -52,10 +52,10 @@ Offline coverage is the default and needs no public network access:
 pytest -q tests/test_threads_unit.py
 ```
 
-The live smoke suite is deliberate and sends two conservative requests to the public service:
+The live smoke suite is deliberate and validates the public profile SSR page plus cursor pagination without testing command-line parsing:
 
 ```shell
-OUTGRAM_RUN_THREADS_SMOKE=1 pytest -m threads_smoke tests/test_threads.py
+OUTGRAM_RUN_THREADS_SMOKE=1 pytest -m threads_smoke
 ```
 
 A smoke failure caused by a block, unavailable SSR payload or changed public endpoint is diagnostic information, not a reason to add authentication, browser simulation, proxy rotation or aggressive retries.
