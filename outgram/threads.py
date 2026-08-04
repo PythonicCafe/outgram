@@ -52,6 +52,23 @@ class Threads(BaseClient):
         },
     }
 
+    public_timeline_query = {
+        "method": "POST",
+        "url": graphql_url,
+        "doc_id": "27934428076249269",
+        "operation": "BarcelonaProfileThreadsTabDirectQuery",
+        "headers": {},
+        "variables": {"allow_page_info_for_lox_user": False, "first": 30},
+    }
+    public_timeline_refetch_query = {
+        "method": "POST",
+        "url": graphql_url,
+        "doc_id": "28185048804453360",
+        "operation": "BarcelonaProfileThreadsTabRefetchableDirectQuery",
+        "headers": {},
+        "variables": {"allow_page_info_for_lox_user": False, "first": 30},
+    }
+
     # TODO: implement authentication
     # TODO: list post comments (needs authentication)
 
@@ -175,58 +192,56 @@ class Threads(BaseClient):
             return self.profile_from_user_id(username_or_id, raw=raw)
         return self.profile_from_username(username_or_id, raw=raw)
 
-    def _extract_post(self, post_data: dict) -> ThreadsPost:
-        if len(post_data.get("carousel_media") or []) > 0:
-            inner_media = post_data["carousel_media"]
-        else:
-            inner_media = [post_data]
+    def _extract_post(self, post_data: Dict[str, Any]) -> ThreadsPost:
+        inner_media = post_data.get("carousel_media") or [post_data]
         post_media = []
         for obj in inner_media:
-            obj_picture = None
-            if "image_versions2" in obj and "candidates" in obj["image_versions2"]:
-                images = [
-                    Picture(pic["url"], pic["width"], pic["height"]) for pic in obj["image_versions2"]["candidates"]
-                ]
-                images.sort(key=lambda obj: obj.width, reverse=True)
-                if images:
-                    obj_picture = images[0]
-            if len(obj.get("video_versions") or []) > 0:
-                video = obj["video_versions"][0]
-                video = Video(type=video["type"], url=video["url"])
-                if obj_picture is not None:
-                    video.thumbnail = obj_picture
-                post_media.append(video)
-            elif obj_picture is not None:
-                post_media.append(obj_picture)
+            candidates = (obj.get("image_versions2") or {}).get("candidates") or []
+            pictures = [
+                Picture(pic["url"], pic.get("width"), pic.get("height")) for pic in candidates if pic.get("url")
+            ]
+            pictures.sort(key=lambda picture: picture.width or 0, reverse=True)
+            thumbnail = pictures[0] if pictures else None
+            video_versions = obj.get("video_versions") or []
+            if video_versions and video_versions[0].get("url"):
+                version = video_versions[0]
+                post_media.append(
+                    Video(
+                        type=version.get("type"),
+                        url=version["url"],
+                        width=version.get("width"),
+                        height=version.get("height"),
+                        thumbnail=thumbnail,
+                    )
+                )
+            elif thumbnail:
+                post_media.append(thumbnail)
 
+        info = post_data.get("text_post_app_info") or {}
+        fragments = (info.get("text_fragments") or {}).get("fragments") or []
         text = ""
         links = []
-        if "text_post_app_info" in post_data and "text_fragments" in post_data["text_post_app_info"]:
-            for fragment in post_data["text_post_app_info"]["text_fragments"]["fragments"]:
-                text += fragment["plaintext"]
-                if fragment["fragment_type"] == "link" and fragment["link_fragment"]:
-                    links.append(
-                        Link(
-                            url=fragment["link_fragment"]["uri"],
-                            display_text=fragment["link_fragment"]["display_text"],
-                        )
-                    )
+        for fragment in fragments:
+            text += fragment.get("plaintext") or ""
+            link = fragment.get("link_fragment") or {}
+            if fragment.get("fragment_type") == "link" and link.get("uri"):
+                links.append(Link(url=link["uri"], display_text=link.get("display_text")))
         user = post_data["user"]
         return ThreadsPost(
             id=post_data["id"],
             user_id=int(user["pk"]),
             username=user["username"],
-            is_verified=user["is_verified"],
+            is_verified=user.get("is_verified"),
             text=text,
             links=links,
-            published_at=datetime.datetime.fromtimestamp(post_data["taken_at"]).replace(tzinfo=datetime.timezone.utc),
-            likes=post_data["like_count"],
-            replies=post_data["text_post_app_info"].get("direct_reply_count", 0),
-            reposts=post_data["text_post_app_info"].get("repost_count", 0),
-            quotes=post_data["text_post_app_info"].get("quote_count", 0),
+            published_at=datetime.datetime.fromtimestamp(post_data["taken_at"], tz=datetime.timezone.utc),
+            likes=post_data.get("like_count"),
+            replies=info.get("direct_reply_count", 0),
+            reposts=info.get("repost_count", 0),
+            quotes=info.get("quote_count", 0),
             is_private=user.get("text_post_app_is_private", False),
             media=post_media,
-            reply_control=post_data["text_post_app_info"].get("reply_control"),
+            reply_control=info.get("reply_control"),
             media_type=post_data.get("media_type"),
             accessibility_caption=post_data.get("accessibility_caption"),
             is_paid_partnership=post_data.get("is_paid_partnership"),
@@ -235,48 +250,46 @@ class Threads(BaseClient):
             original_width=post_data.get("original_width"),
             original_height=post_data.get("original_height"),
             code=post_data.get("code"),
-            reshares=post_data["text_post_app_info"].get("reshare_count"),
+            reshares=info.get("reshare_count"),
         )
+
+    @staticmethod
+    def _timeline(data: Dict[str, Any], operation: str) -> Dict[str, Any]:
+        timeline = data["data"].get("mediaData")
+        if not isinstance(timeline, dict) or not isinstance(timeline.get("edges"), list):
+            raise RuntimeError(f"Public Threads response had no timeline data for {operation}")
+        return timeline
+
+    def _timeline_page(self, query: Dict[str, Any], user_id: int, cursor: Optional[str] = None) -> Dict[str, Any]:
+        variables = dict(query["variables"])
+        variables["userID"] = str(user_id)
+        if cursor is not None:
+            variables["after"] = cursor
+        return self._timeline(self._graphql_query(query, variables), query["operation"])
 
     def profile_posts_from_user_id(
         self, user_id: int, raw: bool = False
     ) -> Generator[Union[ThreadsPost, Dict[str, Any]], None, None]:
-        """
-        Get last posts for user with ID `user_id`
-
-        Call `profile(username)` or `full_profile(username)` to get `user_id` from a username
-        """
-        query_name = "BarcelonaProfileThreadsTabQuery"
-        headers = {
-            "x-fb-friendly-name": query_name,
-        }
-        query_variables = {
-            "userID": user_id,
-            "__relay_internal__pv__BarcelonaIsLoggedInrelayprovider": "false",
-            "__relay_internal__pv__BarcelonaIsInlineReelsEnabledrelayprovider": "true",
-            "__relay_internal__pv__BarcelonaOptionalCookiesEnabledrelayprovider": "true",
-            "__relay_internal__pv__BarcelonaShowReshareCountrelayprovider": "true",
-            "__relay_internal__pv__BarcelonaQuotedPostUFIEnabledrelayprovider": "false",
-            "__relay_internal__pv__BarcelonaIsCrawlerrelayprovider": "false",
-            "__relay_internal__pv__BarcelonaShouldShowFediverseM075Featuresrelayprovider": "false",
-        }
-        data = {
-            "fb_api_req_friendly_name": query_name,
-            "variables": json.dumps(query_variables),
-            "lsd": self.session.headers["x-fb-lsd"],
-            "doc_id": "27224795300468294",
-        }
-        response = self.request(method="POST", url=self.graphql_url, headers=headers, data=data)
-        data = response.json()
-        for post_data in data["data"]["mediaData"]["edges"]:
-            raw_post = post_data["node"]["thread_items"][0]["post"]
-            if raw:
-                yield raw_post
-            else:
-                post = self._extract_post(raw_post)
-                self._user_id_cache[post.username] = post.user_id
-                yield post
-        # TODO: if logged in, get `end_cursor` inside `page_info` and paginate
+        """Yield public profile posts, following cursors while they are available."""
+        timeline = self._timeline_page(self.public_timeline_query, user_id)
+        while True:
+            for edge in timeline["edges"]:
+                node = edge.get("node") if isinstance(edge, dict) else None
+                items = node.get("thread_items") if isinstance(node, dict) else None
+                post_data = items[0].get("post") if items and isinstance(items[0], dict) else None
+                if not isinstance(post_data, dict):
+                    continue
+                if raw:
+                    yield post_data
+                else:
+                    post = self._extract_post(post_data)
+                    self._user_id_cache[post.username] = post.user_id
+                    yield post
+            page_info = timeline.get("page_info") or {}
+            cursor = page_info.get("end_cursor")
+            if not page_info.get("has_next_page") or not cursor:
+                return
+            timeline = self._timeline_page(self.public_timeline_refetch_query, user_id, cursor)
 
     def profile_posts_from_username(
         self, username: str, raw: bool = False
@@ -292,6 +305,6 @@ class Threads(BaseClient):
         self, username_or_id: Union[str, int], raw: bool = False
     ) -> Generator[Union[ThreadsPost, Dict[str, Any]], None, None]:
         if isinstance(username_or_id, int) or username_or_id.isdigit():
-            yield from self.profile_posts_from_user_id(username_or_id)
+            yield from self.profile_posts_from_user_id(username_or_id, raw=raw)
         else:
-            yield from self.profile_posts_from_username(username_or_id)
+            yield from self.profile_posts_from_username(username_or_id, raw=raw)
