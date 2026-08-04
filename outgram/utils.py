@@ -34,9 +34,7 @@ def default_browser_headers(user_agent: str) -> dict[str, str]:
 
 def random_user_agent() -> str:
     """Return a random user agent from a curated real-world list of Linux, Windows and Mac desktop systems"""
-    user_agents = (
-        dedent(
-            """
+    user_agents = dedent("""
             Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36
             Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36
             Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15
@@ -67,9 +65,5 @@ def random_user_agent() -> str:
             Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0
             Mozilla/5.0 (X11; Linux x86_64; rv:134.0) Gecko/20100101 Firefox/134.0
             Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:35.0) Gecko/20100101 Firefox/35.0
-        """
-        )
-        .strip()
-        .splitlines()
-    )
+        """).strip().splitlines()
     return random.choice(user_agents)
