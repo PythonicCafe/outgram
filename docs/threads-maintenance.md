@@ -7,13 +7,15 @@ Threads public Web responses are implementation details, not a stable API. This 
 | Capability | Implementation |
 | --- | --- |
 | Profile by username | `Threads.simple_profile` and `profile_from_username` |
-| First public timeline page by username | `Threads.profile_posts_from_username` |
-| SSR parser | `ThreadsPublicPageHTMLParser` and `Threads._relay_results` |
+| Public timeline and cursor pagination by username | `Threads.profile_posts_from_username` and `_timeline_refetch` |
+| SSR parser and request bootstrap | `ThreadsPublicPageHTMLParser`, `_relay_results` and `_timeline_refetch_bootstrap` |
 | Profile and post parsing | `_extract_profile` and `_extract_post` |
 
 The client navigates to `https://www.threads.com/@<username>` with document-navigation headers. The logged-out HTML can contain `RelayPrefetchedStreamCache` records whose `result.data.user` and `result.data.mediaData` provide the profile and initial timeline page.
 
-Numeric-ID lookup and timeline pagination are not currently supported. The previously observed GraphQL documents require a browser request envelope that has not been reproduced from a fresh public session. The client must raise a contextual error for those paths rather than replay HAR values or return a partial archive silently.
+The first timeline page comes from SSR. When it exposes `page_info.has_next_page` and `end_cursor`, the client derives the public GraphQL refetch bootstrap from that same HTML document and follows the cursor. It obtains LSD, CSRF, Bloks version, app ID, route, revisions and session cookies from its own new public response; it creates its own web-session ID and does not import HAR values.
+
+Numeric-ID lookup is not currently supported. It has no public page route from which the client can derive the necessary profile bootstrap, so that path must raise a contextual error rather than replaying captured browser values.
 
 ## Capture and inspect a small HAR
 
@@ -40,7 +42,7 @@ python scripts/analyze_har.py profile.har --profile target_username --json > har
 
 Stop on `401`, `403`, `429`, HTML login walls or challenges. A public page can also fall back to metadata without the SSR records; report that response as unavailable rather than inventing profile or post data.
 
-When changing post parsing, preserve the distinction between text-only posts, photos, videos with thumbnails and carousel children. The first-page generator raises if it needs an unimplemented later page. Consumers that intentionally need only a small prefix must set a post limit before collection continues to pagination.
+When changing post parsing, preserve the distinction between text-only posts, photos, videos with thumbnails and carousel children. Validate both the SSR first page and a cursor page. The refetch form includes browser-generated fields such as `__dyn`, `__csr`, `__hsdp`, `__hblp` and `__sjsp`; the current public endpoint accepts empty values for them, so do not hard-code captured values or expand a browser fingerprint unless a fresh-session experiment proves it necessary.
 
 ## Tests
 

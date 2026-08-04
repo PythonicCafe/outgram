@@ -9,7 +9,7 @@ use.
 
 ## Maintenance
 
-Instagram and Threads public Web responses can change without notice. When an endpoint or response parser stops working, follow the [Instagram scraper maintenance guide](docs/instagram-maintenance.md) or the [Threads scraper maintenance guide](docs/threads-maintenance.md). Threads profile collection currently uses the public page SSR payload for usernames and the first timeline page; numeric IDs and later-page pagination are unavailable. Threads live coverage is opt-in: `OUTGRAM_RUN_THREADS_SMOKE=1 pytest -m threads_smoke tests/test_threads.py`. For the stdlib-only Lightpanda installer and CDP capture utility, see [Lightpanda capture](docs/lightpanda-capture.md).
+Instagram and Threads public Web responses can change without notice. When an endpoint or response parser stops working, follow the [Instagram scraper maintenance guide](docs/instagram-maintenance.md) or the [Threads scraper maintenance guide](docs/threads-maintenance.md). Threads profile collection uses the public page SSR payload for usernames and derives the public cursor-pagination bootstrap from that same page; numeric IDs remain unavailable. Threads live coverage is opt-in: `OUTGRAM_RUN_THREADS_SMOKE=1 pytest -m threads_smoke tests/test_threads.py`. For the stdlib-only Lightpanda installer and CDP capture utility, see [Lightpanda capture](docs/lightpanda-capture.md).
 
 
 ## License
