@@ -1,6 +1,6 @@
 import csv
 
-from outgram.export import export_instagram_catalog
+from outgram.export import export_instagram_catalog, export_threads_catalog
 
 
 def write_posts(path):
@@ -35,6 +35,35 @@ def write_posts(path):
         )
 
 
+def write_threads_posts(path):
+    with path.open("w", encoding="utf-8", newline="") as file_obj:
+        writer = csv.DictWriter(
+            file_obj,
+            fieldnames=("id", "username", "code", "published_at", "media", "text"),
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "id": "456",
+                "username": "shared.author",
+                "code": "ThreadsCode",
+                "published_at": "2026-07-28 12:51:09+00:00",
+                "media": "https://cdn.example.invalid/photo.jpg",
+                "text": "Caption <with markup>",
+            }
+        )
+        writer.writerow(
+            {
+                "id": "789",
+                "username": "example.person",
+                "code": "TextCode",
+                "published_at": "2026-07-29 12:51:09+00:00",
+                "media": "",
+                "text": "Text-only post",
+            }
+        )
+
+
 def test_export_instagram_catalog_writes_markdown_and_html(temp_dir):
     input_csv = temp_dir / "post.csv"
     transcriptions_dir = temp_dir / "transcription"
@@ -51,7 +80,7 @@ def test_export_instagram_catalog_writes_markdown_and_html(temp_dir):
         profile="example.person",
         collected_at="2026-07-31 09:16 UTC",
         transcriptions_dir=transcriptions_dir,
-        output_format="both",
+        output_format=None,
     )
 
     assert written == [temp_dir / "catalog.md", temp_dir / "catalog.html"]
@@ -83,3 +112,28 @@ def test_export_instagram_catalog_writes_selected_format_to_requested_path(temp_
     assert written == [output]
     assert output.exists()
     assert not (temp_dir / "nested" / "catalog.md").exists()
+
+
+def test_export_threads_catalog_writes_markdown_and_html(temp_dir):
+    input_csv = temp_dir / "threads-post.csv"
+    write_threads_posts(input_csv)
+
+    written = export_threads_catalog(
+        input_csv=input_csv,
+        output=temp_dir / "nested" / "catalog",
+        profile="collected.profile",
+        collected_at="2026-07-31 09:16 UTC",
+        transcriptions_dir=None,
+        output_format=None,
+    )
+
+    assert written == [temp_dir / "nested" / "catalog.md", temp_dir / "nested" / "catalog.html"]
+    markdown = written[0].read_text(encoding="utf-8")
+    assert "Threads profile collected.profile" in markdown
+    assert "https://www.threads.com/@shared.author/post/ThreadsCode" in markdown
+    assert "Original author:** [@shared.author]" in markdown
+    assert "Text-only post" in markdown
+
+    html = written[1].read_text(encoding="utf-8")
+    assert "Caption &lt;with markup&gt;" in html
+    assert "https://www.threads.com/@shared.author/" in html

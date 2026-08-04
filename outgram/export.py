@@ -1,4 +1,4 @@
-"""Export collected Instagram post metadata as Markdown or HTML."""
+"""Export collected Instagram and Threads post metadata as Markdown or HTML."""
 
 import csv
 import html
@@ -11,8 +11,16 @@ from urllib.parse import urlparse
 TIMING = re.compile(r"^\d{2}:\d{2}:\d{2}[.,]\d{3}\s+-->\s+\d{2}:\d{2}:\d{2}[.,]\d{3}")
 
 
-def post_url(post: Dict[str, str]) -> str:
-    """Return the canonical public URL for a post."""
+NETWORKS = {
+    "instagram": {"name": "Instagram", "profile_url": "https://instagram.com/{}"},
+    "threads": {"name": "Threads", "profile_url": "https://www.threads.com/@{}"},
+}
+
+
+def post_url(post: Dict[str, str], network: str) -> str:
+    """Return the canonical public URL for a collected post."""
+    if network == "threads":
+        return "https://www.threads.com/@{}/post/{}".format(post["username"], post["code"])
     kind = "reel" if post.get("type") == "video" else "p"
     return "https://www.instagram.com/{}/{}/".format(kind, post["code"])
 
@@ -25,19 +33,19 @@ def is_video_url(url: str) -> bool:
     return Path(urlparse(url).path).suffix.lower() in {".mp4", ".mov", ".webm"}
 
 
-def image_links(post: Dict[str, str]) -> List[Tuple[int, str]]:
-    """Return carousel image slide numbers and their Instagram URLs."""
-    if post.get("type") != "carousel":
+def image_links(post: Dict[str, str], network: str) -> List[Tuple[int, str]]:
+    """Return carousel image slide numbers and their public URLs."""
+    if network != "instagram" or post.get("type") != "carousel":
         return []
     return [
-        (index, "{}?img_index={}".format(post_url(post), index))
+        (index, "{}?img_index={}".format(post_url(post, network), index))
         for index, url in enumerate(media_urls(post.get("media", "")), start=1)
         if not is_video_url(url)
     ]
 
 
 def read_transcription(post_id: str, transcriptions_dir: Optional[Path]) -> str:
-    """Read the first VTT transcription for a post, without VTT metadata."""
+    """Read the first external VTT transcription for a post, without VTT metadata."""
     if transcriptions_dir is None:
         return ""
     candidates = sorted(transcriptions_dir.glob("post_{}_*.vtt".format(post_id)))
@@ -58,8 +66,9 @@ def format_datetime(value: str) -> str:
     return date.strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
-def author_label(post: Dict[str, str]) -> str:
-    username = post.get("author_username", "").strip()
+def author_label(post: Dict[str, str], network: str) -> str:
+    username_key = "username" if network == "threads" else "author_username"
+    username = post.get(username_key, "").strip()
     name = post.get("author_full_name", "").strip()
     if not username:
         return ""
@@ -75,47 +84,38 @@ def has_video(post: Dict[str, str]) -> bool:
 
 def markdown_document(
     posts: Iterable[Dict[str, str]],
+    network: str,
     profile: str,
     collected_at: str,
     transcriptions_dir: Optional[Path],
 ) -> str:
     posts = list(posts)
+    network_info = NETWORKS[network]
+    network_name = network_info["name"]
     output = [
-        "# Instagram: {}".format(profile),
+        "# {}: {}".format(network_name, profile),
         "",
-        "Posts from [Instagram profile {}](https://instagram.com/{}) — collected at {}.".format(
-            profile, profile, collected_at
+        "Posts from [{} profile {}]({}) — collected at {}.".format(
+            network_name, profile, network_info["profile_url"].format(profile), collected_at
         ),
         "",
         "Total catalogued posts: **{}**. Times are in **UTC**.".format(len(posts)),
     ]
     for post in posts:
-        url = post_url(post)
-        details = [
-            "[View on Instagram]({})".format(url),
-            "Type: {}".format(post.get("type", "")),
-        ]
-        photos = image_links(post)
+        url = post_url(post, network)
+        details = ["[View on {}]({})".format(network_name, url)]
+        if post.get("type"):
+            details.append("Type: {}".format(post["type"]))
+        photos = image_links(post, network)
         if photos:
             details.append("Photos: " + " ".join("[{}]({})".format(index, link) for index, link in photos))
         if post.get("pinned", "").strip().lower() in {"1", "true", "yes"}:
             details.append("Pinned")
-        output.extend(
-            [
-                "",
-                "## Post {}".format(format_datetime(post["published_at"])),
-                "",
-                " · ".join(details),
-                "",
-            ]
-        )
-        label = author_label(post)
+        output.extend(["", "## Post {}".format(format_datetime(post["published_at"])), "", " · ".join(details), ""])
+        label = author_label(post, network)
         if label:
-            output.append(
-                "**Original author:** [{}](https://www.instagram.com/{}/)".format(
-                    label, post["author_username"].strip()
-                )
-            )
+            username = post["username"] if network == "threads" else post["author_username"]
+            output.append("**Original author:** [{}]({})".format(label, network_info["profile_url"].format(username.strip())))
         else:
             output.append("**Original author:** not provided")
         text = post.get("text", "").strip()
@@ -131,44 +131,46 @@ def markdown_document(
 
 def html_document(
     posts: Iterable[Dict[str, str]],
+    network: str,
     profile: str,
     collected_at: str,
     transcriptions_dir: Optional[Path],
 ) -> str:
     posts = list(posts)
+    network_info = NETWORKS[network]
+    network_name = network_info["name"]
     escaped_profile = html.escape(profile)
     output = [
         "<!doctype html>",
         '<html lang="en"><head><meta charset="utf-8">',
-        "<title>Instagram: {}</title></head><body>".format(escaped_profile),
-        "<h1>Instagram: {}</h1>".format(escaped_profile),
-        '<p>Posts from <a href="https://instagram.com/{0}">Instagram profile {0}</a> — collected at {1}.</p>'.format(
-            escaped_profile, html.escape(collected_at)
+        "<title>{}: {}</title></head><body>".format(network_name, escaped_profile),
+        "<h1>{}: {}</h1>".format(network_name, escaped_profile),
+        '<p>Posts from <a href="{}">{} profile {}</a> — collected at {}.</p>'.format(
+            html.escape(network_info["profile_url"].format(profile), quote=True),
+            network_name,
+            escaped_profile,
+            html.escape(collected_at),
         ),
         "<p>Total catalogued posts: <strong>{}</strong>. Times are in <strong>UTC</strong>.</p>".format(len(posts)),
     ]
     for post in posts:
-        url = post_url(post)
+        url = post_url(post, network)
         output.append("<article><h2>Post {}</h2>".format(html.escape(format_datetime(post["published_at"]))))
-        details = [
-            '<a href="{}">View on Instagram</a>'.format(html.escape(url, quote=True)),
-            "Type: {}".format(html.escape(post.get("type", ""))),
-        ]
-        photos = image_links(post)
+        details = ['<a href="{}">View on {}</a>'.format(html.escape(url, quote=True), network_name)]
+        if post.get("type"):
+            details.append("Type: {}".format(html.escape(post["type"])))
+        photos = image_links(post, network)
         if photos:
-            details.append(
-                "Photos: "
-                + " ".join('<a href="{}">{}</a>'.format(html.escape(link, quote=True), index) for index, link in photos)
-            )
+            details.append("Photos: " + " ".join('<a href="{}">{}</a>'.format(html.escape(link, quote=True), index) for index, link in photos))
         if post.get("pinned", "").strip().lower() in {"1", "true", "yes"}:
             details.append("Pinned")
         output.append("<p>{}</p>".format(" &middot; ".join(details)))
-        label = author_label(post)
+        label = author_label(post, network)
         if label:
+            username = post["username"] if network == "threads" else post["author_username"]
             output.append(
-                '<p><strong>Original author:</strong> <a href="https://www.instagram.com/{0}/">{1}</a></p>'.format(
-                    html.escape(post["author_username"].strip(), quote=True),
-                    html.escape(label),
+                '<p><strong>Original author:</strong> <a href="{}">{}</a></p>'.format(
+                    html.escape(network_info["profile_url"].format(username.strip()), quote=True), html.escape(label)
                 )
             )
         else:
@@ -178,9 +180,7 @@ def html_document(
             output.append("<p>{}</p>".format(html.escape(text).replace("\n", "<br>")))
         transcription = read_transcription(post["id"], transcriptions_dir)
         if transcription:
-            output.append(
-                "<hr><h3>Transcription</h3><p>{}</p>".format(html.escape(transcription).replace("\n", "<br>"))
-            )
+            output.append("<hr><h3>Transcription</h3><p>{}</p>".format(html.escape(transcription).replace("\n", "<br>")))
         elif has_video(post):
             output.append("<hr><p><strong>Transcription:</strong> unavailable in collected data.</p>")
         output.append("</article>")
@@ -188,28 +188,23 @@ def html_document(
     return "\n".join(output) + "\n"
 
 
-def export_instagram_catalog(
+def export_catalog(
+    network: str,
     input_csv: Path,
     output: Path,
     profile: str,
     collected_at: str,
     transcriptions_dir: Optional[Path],
-    output_format: str,
+    output_format: Optional[str] = None,
 ) -> List[Path]:
-    """Export a collected Instagram CSV, returning the files written."""
+    """Export a collected post CSV, returning the files written."""
     with input_csv.open(encoding="utf-8", newline="") as file_obj:
         posts = list(csv.DictReader(file_obj))
     documents = {
-        "markdown": (
-            ".md",
-            markdown_document(posts, profile, collected_at, transcriptions_dir),
-        ),
-        "html": (
-            ".html",
-            html_document(posts, profile, collected_at, transcriptions_dir),
-        ),
+        "markdown": (".md", markdown_document(posts, network, profile, collected_at, transcriptions_dir)),
+        "html": (".html", html_document(posts, network, profile, collected_at, transcriptions_dir)),
     }
-    formats = ["markdown", "html"] if output_format == "both" else [output_format]
+    formats = ["markdown", "html"] if output_format is None else ["markdown" if output_format == "md" else output_format]
     written = []
     for current_format in formats:
         suffix, document = documents[current_format]
@@ -218,3 +213,31 @@ def export_instagram_catalog(
         destination.write_text(document, encoding="utf-8")
         written.append(destination)
     return written
+
+
+def export_instagram_catalog(
+    input_csv: Path,
+    output: Path,
+    profile: str,
+    collected_at: str,
+    transcriptions_dir: Optional[Path],
+    output_format: Optional[str] = None,
+) -> List[Path]:
+    """Export a collected Instagram CSV, returning the files written."""
+    return export_catalog(
+        "instagram", input_csv, output, profile, collected_at, transcriptions_dir, output_format=output_format
+    )
+
+
+def export_threads_catalog(
+    input_csv: Path,
+    output: Path,
+    profile: str,
+    collected_at: str,
+    transcriptions_dir: Optional[Path],
+    output_format: Optional[str] = None,
+) -> List[Path]:
+    """Export a collected Threads CSV, returning the files written."""
+    return export_catalog(
+        "threads", input_csv, output, profile, collected_at, transcriptions_dir, output_format=output_format
+    )
