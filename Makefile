@@ -22,7 +22,7 @@ lint:								# Run linter script inside `main` container
 
 package-build:						# Build the Python package in `dist/`
 	rm -rf build dist
-	docker compose run --rm -it main python setup.py sdist bdist_wheel
+	docker compose run --rm -it main python -m build
 	docker compose run --rm -it main twine check dist/*
 
 package-release: package-build		# Build and release the package to PyPI

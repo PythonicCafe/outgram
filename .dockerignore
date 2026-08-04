@@ -8,6 +8,7 @@
 **/*.xlsx
 **/*.zip
 **/__pycache__
+*.egg-info/
 *.dump
 *.dump.gz
 .dockerignore
@@ -15,7 +16,6 @@
 .gitignore
 .pytest_cache
 Dockerfile
-README.md
 build/
 collected-static/
 data/
