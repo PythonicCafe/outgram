@@ -12,7 +12,7 @@
 - Build and validate distributions: `make package-build`
 - Open a development shell: `make bash`
 
-`make test` includes doctests and coverage. Instagram live tests are opt-in; do not enable them for routine local or CI runs. Existing Threads integration tests still make real public requests. The Docker Compose development image installs the `img` and `dev` extras; rebuild it with `make build` after dependency or packaging changes.
+`make test` includes doctests and coverage. Instagram live tests are opt-in; do not enable them for routine local or CI runs. Existing Threads integration tests still make real public requests. The Docker Compose development image installs the `img` and `dev` extras; rebuild it with `make build` after dependency or packaging changes. With `ENV_TYPE=development`, commands that run in the main container execute directly; otherwise they use Docker Compose.
 
 ## Packaging
 

@@ -25,9 +25,10 @@ RUN --mount=type=cache,target=/root/.cache/pip \
   && pip install --cache-dir /root/.cache/pip ".[img]"
 
 ARG ENV_TYPE=production
+ENV ENV_TYPE=${ENV_TYPE}
 RUN if [ "$(echo "$ENV_TYPE" | tr '[:upper:]' '[:lower:]')" != "production" ]; then \
       apt-get update \
-      && apt-get install -y --no-install-recommends git \
+      && apt-get install -y --no-install-recommends git make \
       && pip install --cache-dir /root/.cache/pip ".[dev]" \
       && apt-get clean \
       && rm -rf /var/lib/apt/lists/*; \
