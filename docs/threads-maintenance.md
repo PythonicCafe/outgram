@@ -15,16 +15,19 @@ The canonical public domain is `https://www.threads.com/`. Query settings are gr
 
 ## Capture and inspect a small HAR
 
-Use a disposable, logged-out browser profile. Capture one public profile, load one additional timeline page, then stop recording. HAR files can contain cookies, CSRF/LSD values, session or device identifiers and temporary media URLs. Never commit, attach, print or copy them into fixtures.
+Use a disposable, logged-out browser profile. Capture one public profile, load one additional timeline page, then stop recording. HAR files can contain cookies, CSRF/LSD values, session or device identifiers and temporary media URLs. Never commit, attach, print or copy that transient session material into fixtures.
+
+Public protocol metadata is safe and useful to preserve in a sanitized summary: usernames, numeric public IDs, operation names, `doc_id`s, endpoints, parameter/header names, variable types and structural response paths. Do not confuse those public identifiers with browser session values.
 
 Create a local structural summary instead:
 
 ```shell
 python scripts/analyze_har.py profile.har --profile target_username
+python scripts/analyze_har.py profile.har --profile target_username --show-public-identifiers
 python scripts/analyze_har.py profile.har --profile target_username --json > har-summary.json
 ```
 
-The analyzer reports endpoints, operations, document IDs, field types, form/header names and limited response structure. It intentionally omits bodies, values and sensitive identifiers. Delete local HARs and summaries when they are no longer needed.
+The analyzer reports public endpoints, operations, document IDs, field types, form/header names and limited response structure. It intentionally omits request/response values and transient session identifiers, but it preserves public numeric IDs and other public protocol metadata when they are part of the selected structural fields. Delete local HARs and summaries when they are no longer needed.
 
 ## Safe maintenance workflow
 

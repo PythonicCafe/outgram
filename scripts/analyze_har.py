@@ -3,8 +3,9 @@
 
 The output deliberately excludes request and response bodies, cookies,
 authorization data, CSRF/LSD values, session/device identifiers and media URLs.
-It is intended to identify persisted-query document IDs and request shapes that
-outgram must support.
+The optional public-identifier output includes only usernames and numeric public
+IDs. It is intended to identify persisted-query document IDs and request shapes
+that outgram must support.
 """
 
 import argparse
@@ -25,6 +26,7 @@ SENSITIVE_WORDS = (
     "session",
     "token",
 )
+PUBLIC_IDENTIFIER_FIELDS = ("id", "pk", "userID", "username")
 
 
 def first(values: Dict[str, List[str]], name: str):
@@ -59,6 +61,17 @@ def value_shape(value: Any, depth: int = 0) -> Any:
     if value is None:
         return "null"
     return type(value).__name__
+
+
+def public_identifiers(value: Any) -> Dict[str, Any]:
+    """Extract explicit public profile identifiers without exposing session values."""
+    if not isinstance(value, dict):
+        return {}
+    return {
+        key: item
+        for key, item in value.items()
+        if key in PUBLIC_IDENTIFIER_FIELDS and isinstance(item, (str, int))
+    }
 
 
 def response_summary(response: Dict[str, Any]) -> Dict[str, Any]:
@@ -102,7 +115,11 @@ def relevant_header_names(headers: List[Dict[str, str]]) -> List[str]:
     )
 
 
-def relevant(entries: Iterable[Dict[str, Any]], profile: Optional[str]):
+def relevant(
+    entries: Iterable[Dict[str, Any]],
+    profile: Optional[str],
+    show_public_identifiers: bool = False,
+):
     for index, entry in enumerate(entries):
         request = entry["request"]
         parsed_url = urlparse(request["url"])
@@ -126,8 +143,10 @@ def relevant(entries: Iterable[Dict[str, Any]], profile: Optional[str]):
         ):
             continue
         try:
-            variables_shape = value_shape(json.loads(variables)) if variables else None
+            variables_data = json.loads(variables) if variables else None
+            variables_shape = value_shape(variables_data) if variables else None
         except ValueError:
+            variables_data = None
             variables_shape = "invalid-json"
         response = entry.get("response", {})
         yield {
@@ -138,6 +157,9 @@ def relevant(entries: Iterable[Dict[str, Any]], profile: Optional[str]):
             "friendly_name": first(parameters, "fb_api_req_friendly_name"),
             "doc_id": first(parameters, "doc_id"),
             "variables": variables_shape,
+            "public_identifiers": (
+                public_identifiers(variables_data) if show_public_identifiers else None
+            ),
             "form_parameters": sorted(
                 "[redacted]" if is_sensitive(name) else name for name in parameters
             ),
@@ -164,10 +186,17 @@ def main():
         action="store_true",
         help="Emit JSON instead of a human-readable summary",
     )
+    parser.add_argument(
+        "--show-public-identifiers",
+        action="store_true",
+        help="Include public username and numeric ID variables, never session values",
+    )
     args = parser.parse_args()
 
     har = json.loads(args.har.read_text(encoding="utf-8"))
-    rows = list(relevant(har["log"]["entries"], args.username))
+    rows = list(
+        relevant(har["log"]["entries"], args.username, args.show_public_identifiers)
+    )
     if args.json:
         print(json.dumps(rows, indent=2, ensure_ascii=False))
         return
@@ -179,6 +208,10 @@ def main():
         print(f"  operation: {row['friendly_name'] or '-'}")
         print(f"  doc_id: {row['doc_id'] or '-'}")
         print(f"  variables: {json.dumps(row['variables'], ensure_ascii=False)}")
+        if row["public_identifiers"]:
+            print(
+                f"  public identifiers: {json.dumps(row['public_identifiers'], ensure_ascii=False)}"
+            )
         print(f"  form parameters: {', '.join(row['form_parameters']) or '-'}")
         print(f"  request headers: {', '.join(row['request_headers']) or '-'}")
         response = row["response"]
